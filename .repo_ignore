@@ -1,0 +1,62 @@
+# Package manager caches
+**/node_modules/
+**/.npm/
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+
+# Build caches
+**/.next/
+**/out/
+**/build/
+**/dist/
+**/.gradle/
+**/.nuget/
+**/.cargo/
+**/.stack-work/
+**/.ccache/
+
+# IDE and Editor caches
+**/.idea/
+**/.vscode/
+**/.vs/
+**/*.swp
+**/*~
+
+# Temp files
+**/*.tmp
+**/*.temp
+**/*.bak
+
+# Package lock files
+**/package-lock.json
+**/yarn.lock
+**/pnpm-lock.yaml
+
+# Generated files
+**/.vercel/
+**/.netlify/
+**/.serverless/
+**/.env*
+**/.DS_Store
+**/*.pem
+**/*.tsbuildinfo
+**/next-env.d.ts
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+
+# AI Specific
+.repo_ignore
+.cursorrules
+/.cursor
+
+# Project Specific
+**/.github
+**/.husky
+**/public
+**/assets
+
+# jaw-tools specific
+**/_docs/prompts-compiled
+**/.repomix-profiles/outputs 

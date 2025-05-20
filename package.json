@@ -1,0 +1,42 @@
+{
+  "name": "jaw-tools",
+  "version": "1.0.0",
+  "description": "AI development utilities for Repomix and prompt compilation",
+  "bin": {
+    "jaw-tools": "./bin/jaw-tools-cli.js"
+  },
+  "scripts": {
+    "postinstall": "node setup.js",
+    "repomix": "jaw-tools repomix",
+    "compile-prompt": "jaw-tools compile",
+    "next-gen": "jaw-tools next-gen"
+  },
+  "dependencies": {
+    "fs-extra": "^11.1.1",
+    "glob": "^10.3.10",
+    "repomix": "^0.3.6"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "templates",
+    "src",
+    "setup.js",
+    "README.md"
+  ],
+  "keywords": [
+    "AI",
+    "development",
+    "repomix",
+    "prompt",
+    "template"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thejoeyweber/jaw-tools.git"
+  },
+  "private": true
+}

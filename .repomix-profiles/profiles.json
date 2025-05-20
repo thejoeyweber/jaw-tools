@@ -1,0 +1,14 @@
+{
+  "full-codebase": {
+    "include": "**",
+    "ignore": ".git/**,node_modules/**,.next/**,out/**,build/**,coverage/**",
+    "style": "xml",
+    "compress": false
+  },
+  "docs-only": {
+    "include": "_docs/**",
+    "ignore": "_docs/prompts-compiled/**",
+    "style": "xml",
+    "compress": false
+  }
+}
