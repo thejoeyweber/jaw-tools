@@ -6,7 +6,6 @@
     "jaw-tools": "./bin/jaw-tools-cli.js"
   },
   "scripts": {
-    "postinstall": "node setup.js",
     "repomix": "jaw-tools repomix",
     "compile-prompt": "jaw-tools compile",
     "next-gen": "jaw-tools next-gen"
