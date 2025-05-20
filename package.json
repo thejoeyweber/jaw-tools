@@ -13,13 +13,13 @@
     "configure": "jaw-tools setup"
   },
   "dependencies": {
-    "fs-extra": "^11.1.1",
-    "glob": "^10.3.10",
-    "repomix": "^0.3.6"
+    "fs-extra": "^11.3.0",
+    "glob": "^10.4.5",
+    "gray-matter": "^4.0.3",
+    "js-yaml": "^4.1.0",
+    "repomix": ">=0.3.0"
   },
   "peerDependencies": {
-    "fs-extra": ">=10.0.0",
-    "glob": ">=8.0.0",
     "repomix": ">=0.3.0"
   },
   "engines": {

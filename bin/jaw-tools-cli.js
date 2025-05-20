@@ -49,6 +49,11 @@ switch (command) {
     runNextGen();
     break;
     
+  case 'mini-prd':
+  case 'mprd':
+    runMiniPrdCommand(args);
+    break;
+    
   case 'version':
   case 'v':
     showVersion();
@@ -132,6 +137,239 @@ function runRepomixCommand(args) {
   }
 }
 
+function runMiniPrdCommand(args) {
+  try {
+    // Parse and process the mini-prd command arguments
+    const [subCommand, ...subArgs] = args;
+    
+    // Check if the MiniPrdManager exists
+    const miniPrdManagerPath = normalizePath(__dirname, '..', 'lib', 'mini-prd', 'manager.js');
+    if (!fs.existsSync(miniPrdManagerPath)) {
+      console.error(`❌ Mini-PRD manager not found at: ${miniPrdManagerPath}`);
+      process.exit(1);
+    }
+    
+    // Load the MiniPrdManager class
+    const MiniPrdManager = require(miniPrdManagerPath);
+    const manager = new MiniPrdManager(projectRoot);
+    
+    switch (subCommand) {
+      case 'create':
+        // Parse create command parameters
+        const name = subArgs[0];
+        if (!name) {
+          console.error('❌ Error: Mini-PRD name is required');
+          process.exit(1);
+        }
+        
+        // Parse options
+        const options = {};
+        for (let i = 1; i < subArgs.length; i++) {
+          if (subArgs[i].startsWith('--')) {
+            const option = subArgs[i].substring(2);
+            const value = subArgs[i+1];
+            if (value && !value.startsWith('--')) {
+              if (option === 'includes' || option === 'excludes' || option === 'plannedFiles') {
+                options[option] = value.split(',');
+              } else {
+                options[option] = value;
+              }
+              i++; // Skip the value in the next iteration
+            } else {
+              options[option] = true;
+            }
+          }
+        }
+        
+        try {
+          const id = manager.createPrd(name, options);
+          console.log(`✅ Created Mini-PRD ${id}: ${name}`);
+          const filename = `${id}-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.md`;
+          console.log(`📝 Markdown file: _docs/mini-prds/${filename}`);
+        } catch (err) {
+          console.error(`❌ Error creating Mini-PRD: ${err.message}`);
+          process.exit(1);
+        }
+        break;
+        
+      case 'update':
+        // Check for PRD ID
+        const updateId = subArgs[0];
+        if (!updateId) {
+          console.error('❌ Error: Mini-PRD ID is required');
+          process.exit(1);
+        }
+        
+        // Parse update options
+        const updateOptions = {};
+        for (let i = 1; i < subArgs.length; i++) {
+          if (subArgs[i].startsWith('--')) {
+            const option = subArgs[i].substring(2);
+            const value = subArgs[i+1];
+            if (value && !value.startsWith('--')) {
+              if (option === 'add' || option === 'include') {
+                updateOptions.includes = value.split(',');
+              } else if (option === 'exclude') {
+                updateOptions.excludes = value.split(',');
+              } else if (option === 'plannedFiles' || option === 'planned') {
+                updateOptions.plannedFiles = value.split(',');
+              } else {
+                updateOptions[option] = value;
+              }
+              i++; // Skip the value in the next iteration
+            }
+          }
+        }
+        
+        try {
+          const result = manager.updatePrd(updateId, updateOptions);
+          console.log(`✅ Updated Mini-PRD ${updateId}`);
+          console.log(`🔄 Updated: ${Object.keys(updateOptions).join(', ')}`);
+        } catch (err) {
+          console.error(`❌ Error updating Mini-PRD: ${err.message}`);
+          process.exit(1);
+        }
+        break;
+        
+      case 'snapshot':
+        // Check for PRD ID
+        const snapshotId = subArgs[0];
+        if (!snapshotId) {
+          console.error('❌ Error: Mini-PRD ID is required');
+          process.exit(1);
+        }
+        
+        try {
+          const result = manager.generateSnapshot(snapshotId);
+          if (result.success) {
+            console.log(`✅ Generated snapshot for Mini-PRD ${snapshotId}`);
+            console.log(`📁 Profile: ${result.profileName}`);
+          } else {
+            console.error(`❌ Error generating snapshot: ${result.error}`);
+            process.exit(1);
+          }
+        } catch (err) {
+          console.error(`❌ Error generating snapshot: ${err.message}`);
+          process.exit(1);
+        }
+        break;
+        
+      case 'sync':
+        try {
+          const result = manager.syncFromMarkdown();
+          console.log(`✅ Synced Mini-PRDs from markdown files`);
+          console.log(`📊 Created: ${result.created}, Updated: ${result.updated}`);
+        } catch (err) {
+          console.error(`❌ Error syncing Mini-PRDs: ${err.message}`);
+          process.exit(1);
+        }
+        break;
+        
+      case 'status':
+        // Check for PRD ID
+        const statusId = subArgs[0];
+        if (!statusId) {
+          console.error('❌ Error: Mini-PRD ID is required');
+          process.exit(1);
+        }
+        
+        try {
+          const status = manager.checkFileStatus(statusId);
+          const prd = manager.getPrd(statusId);
+          
+          console.log(`\nMini-PRD ${statusId}: ${prd.description}`);
+          console.log(`--------------------------`);
+          console.log(`Matching Files: ${status.existingFiles.length + status.plannedFiles.length} total (${status.existingFiles.length} existing, ${status.plannedFiles.length} planned)\n`);
+          
+          if (status.existingFiles.length > 0) {
+            console.log(`Existing Files:`);
+            status.existingFiles.forEach(file => {
+              console.log(`✓ ${file}`);
+            });
+            console.log('');
+          }
+          
+          if (status.plannedFiles.length > 0) {
+            console.log(`Planned Files:`);
+            status.plannedFiles.forEach(({ file, exists }) => {
+              console.log(`${exists ? '✓' : '✗'} ${file} - ${exists ? 'CREATED' : 'NOT CREATED'}`);
+            });
+          }
+        } catch (err) {
+          console.error(`❌ Error checking file status: ${err.message}`);
+          process.exit(1);
+        }
+        break;
+        
+      case 'history':
+        // Check for PRD ID
+        const historyId = subArgs[0];
+        if (!historyId) {
+          console.error('❌ Error: Mini-PRD ID is required');
+          process.exit(1);
+        }
+        
+        try {
+          const history = manager.getHistory(historyId);
+          const prd = manager.getPrd(historyId);
+          
+          console.log(`\nMini-PRD ${historyId}: ${prd.description}`);
+          console.log(`--------------------------`);
+          console.log(`Version History: ${history.length} versions\n`);
+          
+          history.forEach((version, i) => {
+            const date = new Date(version.timestamp).toLocaleString();
+            console.log(`[${i}] ${date}${version.isCurrent ? ' (current)' : ''}`);
+            console.log(`  Includes: ${version.includes.join(', ')}`);
+            console.log(`  Excludes: ${version.excludes.join(', ') || 'none'}`);
+            console.log(`  Planned Files: ${version.plannedFiles.length} files`);
+            console.log('');
+          });
+        } catch (err) {
+          console.error(`❌ Error retrieving history: ${err.message}`);
+          process.exit(1);
+        }
+        break;
+        
+      case 'list':
+      default:
+        try {
+          const prds = manager.getAllPrds();
+          
+          if (prds.length === 0) {
+            console.log('No Mini-PRDs found. Create one with:');
+            console.log('  npx jaw-tools mini-prd create "Feature Name"');
+            break;
+          }
+          
+          console.log('\n📋 Mini-PRDs:');
+          console.log('=============');
+          
+          prds.forEach(prd => {
+            console.log(`\n[${prd.id}] ${prd.description}`);
+            console.log(`  - Created: ${new Date(prd.createdAt).toLocaleDateString()}`);
+            console.log(`  - Files: ${prd.includes.join(', ')}`);
+            console.log(`  - Planned: ${prd.plannedFiles.length} files`);
+          });
+          
+          console.log('\nCommands:');
+          console.log('  npx jaw-tools mini-prd create "Feature Name"  - Create a new Mini-PRD');
+          console.log('  npx jaw-tools mini-prd update <id> --add "<patterns>"  - Update a Mini-PRD');
+          console.log('  npx jaw-tools mini-prd snapshot <id>  - Generate a snapshot');
+          console.log('  npx jaw-tools mini-prd status <id>  - Check file status');
+          console.log('  npx jaw-tools mini-prd history <id>  - View change history');
+        } catch (err) {
+          console.error(`❌ Error listing Mini-PRDs: ${err.message}`);
+          process.exit(1);
+        }
+        break;
+    }
+  } catch (err) {
+    console.error(`❌ Error in mini-prd command: ${err.message}`);
+    process.exit(1);
+  }
+}
+
 function runCompilePrompt(args) {
   try {
     const compilePromptPath = normalizePath(__dirname, '..', 'lib', 'compile-prompt.js');
@@ -201,6 +439,7 @@ Commands:
   repomix, profile, r       Manage and run Repomix profiles
   compile, c <template>     Compile a prompt template
   next-gen, seq, n          Run the sequence of commands
+  mini-prd, mprd            Manage mini-PRDs for feature slices
   version, v                Show version
   help, h                   Show this help message
 
@@ -210,6 +449,8 @@ Examples:
   jaw-tools repomix run full-codebase
   jaw-tools compile _docs/prompts/example.md
   jaw-tools next-gen
+  jaw-tools mini-prd create "Feature Name"
+  jaw-tools mini-prd snapshot 001
 
 Documentation:
   https://github.com/thejoeyweber/jaw-tools

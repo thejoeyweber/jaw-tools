@@ -11,11 +11,21 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const { execSync } = require('child_process');
-const { getTokenCount } = require('../src/utils');
+
+// Helper function to get token count
+function getTokenCount(file) {
+  try {
+    const stats = fs.statSync(file);
+    const fileSizeInKB = stats.size / 1024;
+    return Math.round(fileSizeInKB * 0.6 * 1024); // Rough estimate: ~0.6 tokens per byte
+  } catch (err) {
+    return "Error getting token count";
+  }
+}
 
 // Constants
-const PROFILES_FILE = path.join(__dirname, '..', 'profiles.json');
-const OUTPUT_DIR = path.join(__dirname, '..', 'outputs');
+const PROFILES_FILE = path.join(__dirname, 'profiles.json');
+const OUTPUT_DIR = path.join(__dirname, 'outputs');
 
 // Create output directory if it doesn't exist
 if (!fs.existsSync(OUTPUT_DIR)) {
@@ -162,4 +172,4 @@ console.log('\nExamples:');
 console.log('  node profiles-manager.js add full-codebase');
 console.log('  node profiles-manager.js add frontend-only "app/**,components/**" "actions/**,db/**" xml');
 console.log('  node profiles-manager.js add core-compact "actions/db/**,db/schema/**,types/**" "" xml --compress');
-console.log('  node profiles-manager.js run full-codebase'); 
+console.log('  node profiles-manager.js run full-codebase');
