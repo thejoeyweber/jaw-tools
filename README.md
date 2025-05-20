@@ -11,20 +11,23 @@ AI development utilities for Repomix and prompt compilation. This toolkit provid
 Install jaw-tools from GitHub:
 
 ```bash
-# Standard installation (recommended)
-npm install --save-dev github:thejoeyweber/jaw-tools
-
-# Using direct HTTPS URL
-npm install --save-dev https://github.com/thejoeyweber/jaw-tools.git
-
-# If you experience installation issues, try adding --no-scripts flag
-npm install --save-dev --no-scripts github:thejoeyweber/jaw-tools
-# Then run setup manually after installing required dependencies:
-npm install fs-extra glob repomix
-npx jaw-tools setup
+# RECOMMENDED METHOD (Works Reliably)
+npm install --save-dev https://github.com/thejoeyweber/jaw-tools/tarball/master
 ```
 
 After installation, jaw-tools will set up the necessary directories and configuration in your project.
+
+If you encounter issues with the automatic setup, you can run it manually:
+
+```bash
+# Install dependencies first
+npm install fs-extra glob repomix
+
+# Then run setup
+npx jaw-tools setup
+```
+
+> **Note**: Other installation methods like `npm install github:thejoeyweber/jaw-tools` or using HTTPS Git URLs may not work reliably due to Git authentication and proxy issues. The tarball URL approach above is the most reliable method.
 
 ## Quick Start
 
@@ -149,50 +152,28 @@ module.exports = {
 
 If you experience problems during installation:
 
-1. **Missing Dependencies**: The most common issue is missing dependencies. Install them explicitly:
+1. **Installation Fails or Hangs**: The most reliable installation method is using the tarball URL:
    ```bash
-   npm install fs-extra glob repomix
+   npm install --save-dev https://github.com/thejoeyweber/jaw-tools/tarball/master
    ```
-
-2. **GitHub Authentication Issues**: If you see permission errors related to GitHub:
-   ```
-   npm error git@github.com: Permission denied (publickey).
-   npm error fatal: Could not read from remote repository.
-   ```
-   Use the HTTPS URL format explicitly:
+   
+   If this still has issues, try with the --no-scripts flag and run setup manually:
    ```bash
-   npm install --save-dev https://github.com/thejoeyweber/jaw-tools.git
-   ```
-
-3. **Installation Hangs**: If installation appears to hang, try installing with the `--no-scripts` flag:
-   ```bash
-   npm install --save-dev --no-scripts github:thejoeyweber/jaw-tools
-   ```
-   Then run setup manually after installing required dependencies:
-   ```bash
+   npm install --save-dev --no-scripts https://github.com/thejoeyweber/jaw-tools/tarball/master
    npm install fs-extra glob repomix
    npx jaw-tools setup
    ```
 
-4. **Module Resolution Problems**: If you see "Cannot find module" errors:
+2. **Missing Dependencies**: If you see errors about missing modules:
    ```
    Error: Cannot find module 'fs-extra'
    ```
-   Install the missing module and try again:
+   Install them explicitly:
    ```bash
-   npm install fs-extra
+   npm install fs-extra glob repomix
    ```
 
-5. **Path Resolution Problems**: If you encounter path-related errors, especially on Windows, try using forward slashes in your configuration paths:
-   ```js
-   // In jaw-tools.config.js
-   directories: {
-     docs: 'docs',  // Use forward slashes regardless of platform
-     // ...
-   }
-   ```
-
-6. **Missing Templates**: If template files are reported missing, ensure you have the full repository with all files. You can manually create the required directory structure:
+3. **Missing Templates**: If template files are reported missing, you can manually create the required directory structure:
    ```bash
    mkdir -p .repomix-profiles/outputs _docs/prompts _docs/prompts-compiled
    ```
