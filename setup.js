@@ -9,6 +9,9 @@ if (process.env.npm_config_global || process.env.npm_config_ignore_scripts) {
   process.exit(0);
 }
 
+// Detect if running as part of npm install (postinstall script)
+const isNpmInstall = !!process.env.npm_lifecycle_event && process.env.npm_lifecycle_event === 'postinstall';
+
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout
@@ -53,6 +56,10 @@ const defaultConfig = {
 };
 
 async function askQuestion(query) {
+  // If running as part of npm install, return default value (empty string)
+  if (isNpmInstall) {
+    return '';
+  }
   return new Promise(resolve => rl.question(query, answer => resolve(answer)));
 }
 
@@ -66,6 +73,17 @@ async function setup() {
   const configPath = path.join(projectRoot, 'jaw-tools.config.js');
   if (fs.existsSync(configPath)) {
     console.log('⚠️ jaw-tools.config.js already exists. Skipping configuration setup.');
+    
+    // If running as part of npm install, use existing config without prompting
+    if (isNpmInstall) {
+      console.log('Using existing configuration (running as part of npm install)');
+      createDirectories(config, projectRoot);
+      updatePackageJson(projectRoot);
+      console.log('\n🚀 jaw-tools setup complete with existing configuration!');
+      rl.close();
+      return;
+    }
+    
     const useExisting = await askQuestion('Would you like to continue with the existing configuration? (Y/n): ');
     if (useExisting.toLowerCase() !== 'n') {
       createDirectories(config, projectRoot);
@@ -76,11 +94,15 @@ async function setup() {
     }
   }
   
-  // Ask for directory paths
+  // Ask for directory paths (or use defaults if running as npm install)
   console.log('\n📁 Directory Configuration:');
-  config.directories.docs = await askQuestion(`Docs directory [${config.directories.docs}]: `) || config.directories.docs;
-  config.directories.prompts = await askQuestion(`Prompts directory [${config.directories.prompts}]: `) || config.directories.prompts;
-  config.directories.compiledPrompts = await askQuestion(`Compiled prompts directory [${config.directories.compiledPrompts}]: `) || config.directories.compiledPrompts;
+  if (!isNpmInstall) {
+    config.directories.docs = await askQuestion(`Docs directory [${config.directories.docs}]: `) || config.directories.docs;
+    config.directories.prompts = await askQuestion(`Prompts directory [${config.directories.prompts}]: `) || config.directories.prompts;
+    config.directories.compiledPrompts = await askQuestion(`Compiled prompts directory [${config.directories.compiledPrompts}]: `) || config.directories.compiledPrompts;
+  } else {
+    console.log(`Using default directories (running as part of npm install)`);
+  }
   
   // Create the configuration file
   const configContent = `// jaw-tools configuration

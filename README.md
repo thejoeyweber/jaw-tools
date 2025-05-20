@@ -8,9 +8,17 @@ AI development utilities for Repomix and prompt compilation. This toolkit provid
 
 ## Installation
 
+Install jaw-tools from GitHub:
+
 ```bash
-npm install --save-dev github:thejoeyweber/jaw-tools
+# Install using SSH (recommended for private repositories)
+npm install --save-dev git+ssh://git@github.com/thejoeyweber/jaw-tools.git#v1.0.0
+
+# Or install using HTTPS (if you have a GitHub token configured)
+npm install --save-dev github:thejoeyweber/jaw-tools#v1.0.0
 ```
+
+After installation, jaw-tools will set up the necessary directories and configuration in your project.
 
 ## Quick Start
 
