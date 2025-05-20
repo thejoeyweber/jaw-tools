@@ -5,6 +5,7 @@ AI development utilities for Repomix and prompt compilation. This toolkit provid
 - Repomix profile management for generating codebase snapshots
 - Prompt template compilation with file inclusion
 - Sequential command execution for automated workflows
+- Mini-PRD management for feature slice development
 
 ## Installation
 
@@ -90,6 +91,60 @@ Run a sequence of commands defined in your configuration:
 npx jaw-tools next-gen
 ```
 
+### Mini-PRD Management
+
+Manage mini-PRDs (Product Requirements Documents) for feature slice development:
+
+```bash
+# Create a new mini-PRD
+npx jaw-tools mini-prd create "Auth Feature" --includes "src/features/auth/**,src/components/Auth*.jsx" --excludes "**/*.test.js,**/*.stories.jsx" --plannedFiles "src/features/auth/passwordReset.js"
+
+# Check file status for a mini-PRD
+npx jaw-tools mini-prd status 001
+
+# Generate a Repomix snapshot for a mini-PRD
+npx jaw-tools mini-prd snapshot 001
+
+# Update a mini-PRD
+npx jaw-tools mini-prd update 001 --add "src/utils/auth-utils.js"
+
+# View version history for a mini-PRD
+npx jaw-tools mini-prd history 001
+
+# Sync mini-PRDs from markdown files
+npx jaw-tools mini-prd sync
+
+# List all mini-PRDs
+npx jaw-tools mini-prd list
+```
+
+Mini-PRDs use front-matter in markdown files to store configuration:
+
+```markdown
+---
+prdId: '001'
+name: auth-feature
+description: "Authentication system"
+includes: 
+  - src/features/auth/**
+  - src/components/Auth*.jsx
+excludes:
+  - **/*.test.js
+plannedFiles:
+  - src/features/auth/passwordReset.js
+---
+
+# Mini-PRD: 001 - Authentication System
+
+... rest of the mini-PRD content ...
+```
+
+The mini-PRD system automatically:
+- Tracks which files are part of a feature slice
+- Identifies which planned files have been created
+- Maintains version history of the PRD's scope
+- Generates Repomix snapshots for AI context
+
 ## Configuration
 
 jaw-tools uses a configuration file named `jaw-tools.config.js` in your project root:
@@ -101,7 +156,9 @@ module.exports = {
     repomixProfiles: '.repomix-profiles',
     docs: '_docs',
     prompts: '_docs/prompts',
-    compiledPrompts: '_docs/prompts-compiled'
+    compiledPrompts: '_docs/prompts-compiled',
+    miniPrds: '_docs/mini-prds',
+    miniPrdsConfig: '.mini-prds'
   },
   
   // Repomix configuration
@@ -131,6 +188,15 @@ module.exports = {
       ['repomix-profile', ['run', 'full-codebase']],
       ['compile-prompt', ['_docs/prompts/example.md']]
     ]
+  },
+  
+  // Mini-PRD configuration
+  miniPrds: {
+    directory: '_docs/mini-prds',
+    configDirectory: '.mini-prds',
+    template: '_docs/templates/mini-prd-template.md',
+    repomixOutputDir: '.repomix-profiles/outputs',
+    updateMarkdownOnSync: true
   }
 };
 ```
@@ -143,6 +209,7 @@ module.exports = {
 | `jaw-tools repomix` | `profile`, `r` | Manage and run Repomix profiles |
 | `jaw-tools compile` | `c` | Compile a prompt template |
 | `jaw-tools next-gen` | `seq`, `n` | Run the sequence of commands |
+| `jaw-tools mini-prd` | `mprd` | Manage mini-PRDs for feature slices |
 | `jaw-tools version` | `v` | Show version |
 | `jaw-tools help` | `h` | Show this help message |
 
@@ -175,7 +242,7 @@ If you experience problems during installation:
 
 3. **Missing Templates**: If template files are reported missing, you can manually create the required directory structure:
    ```bash
-   mkdir -p .repomix-profiles/outputs _docs/prompts _docs/prompts-compiled
+   mkdir -p .repomix-profiles/outputs _docs/prompts _docs/prompts-compiled _docs/mini-prds
    ```
 
 ### Common Issues
@@ -183,4 +250,5 @@ If you experience problems during installation:
 - **Configuration Not Found**: If you see a "configuration not found" error, run `npx jaw-tools setup` to create the configuration file.
 - **Permissions Problems**: Ensure you have write permissions to the directories where jaw-tools needs to create files.
 - **Node.js Version**: jaw-tools requires Node.js 14 or higher. Check your version with `node --version`.
-- **Post-Install Script Failures**: If the post-install script fails, it's designed to exit gracefully. You can still run `npx jaw-tools setup` manually to complete the installation. 
+- **Post-Install Script Failures**: If the post-install script fails, it's designed to exit gracefully. You can still run `npx jaw-tools setup` manually to complete the installation.
+- **Mini-PRD Issues**: If mini-PRD commands fail, ensure you have the `fs-extra`, `glob`, and `gray-matter` packages installed. 
