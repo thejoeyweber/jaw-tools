@@ -6,15 +6,21 @@
     "jaw-tools": "./bin/jaw-tools-cli.js"
   },
   "scripts": {
-    "postinstall": "node setup.js",
+    "postinstall": "node -e \"try { require('fs-extra'); require('./setup.js'); } catch (err) { console.error('Error during postinstall:', err.message); process.exit(0); }\"",
     "repomix": "jaw-tools repomix",
     "compile-prompt": "jaw-tools compile",
-    "next-gen": "jaw-tools next-gen"
+    "next-gen": "jaw-tools next-gen",
+    "configure": "jaw-tools setup"
   },
   "dependencies": {
     "fs-extra": "^11.1.1",
     "glob": "^10.3.10",
     "repomix": "^0.3.6"
+  },
+  "peerDependencies": {
+    "fs-extra": ">=10.0.0",
+    "glob": ">=8.0.0",
+    "repomix": ">=0.3.0"
   },
   "engines": {
     "node": ">=14.0.0"
@@ -23,8 +29,10 @@
     "bin",
     "lib",
     "templates",
+    "templates/.repo_ignore",
     "src",
     "setup.js",
+    ".repo_ignore",
     "README.md"
   ],
   "keywords": [

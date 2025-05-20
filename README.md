@@ -16,6 +16,12 @@ npm install --save-dev git+ssh://git@github.com/thejoeyweber/jaw-tools.git#v1.0.
 
 # Or install using HTTPS (if you have a GitHub token configured)
 npm install --save-dev github:thejoeyweber/jaw-tools#v1.0.0
+
+# If you experience installation issues, try adding --no-scripts flag
+npm install --save-dev --no-scripts git+ssh://git@github.com/thejoeyweber/jaw-tools.git#v1.0.0
+# Then run setup manually after installing required dependencies:
+npm install fs-extra glob repomix
+npx jaw-tools setup
 ```
 
 After installation, jaw-tools will set up the necessary directories and configuration in your project.
@@ -135,4 +141,55 @@ module.exports = {
 | `jaw-tools compile` | `c` | Compile a prompt template |
 | `jaw-tools next-gen` | `seq`, `n` | Run the sequence of commands |
 | `jaw-tools version` | `v` | Show version |
-| `jaw-tools help` | `h` | Show this help message | 
+| `jaw-tools help` | `h` | Show this help message |
+
+## Troubleshooting
+
+### Installation Issues
+
+If you experience problems during installation:
+
+1. **Missing Dependencies**: The most common issue is missing dependencies. Install them explicitly:
+   ```bash
+   npm install fs-extra glob repomix
+   ```
+
+2. **Installation Hangs**: If installation appears to hang, try installing with the `--no-scripts` flag:
+   ```bash
+   npm install --save-dev --no-scripts git+ssh://git@github.com/thejoeyweber/jaw-tools.git#v1.0.0
+   ```
+   Then run setup manually after installing required dependencies:
+   ```bash
+   npm install fs-extra glob repomix
+   npx jaw-tools setup
+   ```
+
+3. **Module Resolution Problems**: If you see "Cannot find module" errors:
+   ```
+   Error: Cannot find module 'fs-extra'
+   ```
+   Install the missing module and try again:
+   ```bash
+   npm install fs-extra
+   ```
+
+4. **Path Resolution Problems**: If you encounter path-related errors, especially on Windows, try using forward slashes in your configuration paths:
+   ```js
+   // In jaw-tools.config.js
+   directories: {
+     docs: 'docs',  // Use forward slashes regardless of platform
+     // ...
+   }
+   ```
+
+5. **Missing Templates**: If template files are reported missing, ensure you have the full repository with all files. You can manually create the required directory structure:
+   ```bash
+   mkdir -p .repomix-profiles/outputs _docs/prompts _docs/prompts-compiled
+   ```
+
+### Common Issues
+
+- **Configuration Not Found**: If you see a "configuration not found" error, run `npx jaw-tools setup` to create the configuration file.
+- **Permissions Problems**: Ensure you have write permissions to the directories where jaw-tools needs to create files.
+- **Node.js Version**: jaw-tools requires Node.js 14 or higher. Check your version with `node --version`.
+- **Post-Install Script Failures**: If the post-install script fails, it's designed to exit gracefully. You can still run `npx jaw-tools setup` manually to complete the installation. 
