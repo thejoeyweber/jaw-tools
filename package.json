@@ -44,7 +44,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/thejoeyweber/jaw-tools.git"
+    "url": "https://github.com/thejoeyweber/jaw-tools.git"
   },
   "private": true
 }
