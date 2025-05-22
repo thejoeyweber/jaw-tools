@@ -1,7 +1,7 @@
 ---
 docType: workflow
-version: 2.0.0
-lastUpdated: 2025-05-21
+version: 2.0.1
+lastUpdated: 2025-05-22
 ---
 
 # Adept AI Rapid Workflow & Management Guide
@@ -69,6 +69,20 @@ The Mini-PRD should include or link to a clear UI specification, which can be de
 3. ≤ 3 fix prompts per coding task/segment. A "segment" typically refers to a distinct part of the implementation for a given feature (e.g., a specific function, component, or API endpoint). If an LLM-generated segment requires more than 3 iterative fix prompts, revert the LLM's attempt for that segment. Have the LLM summarize the issues encountered, then re-initiate the task for that segment, providing these troubleshooting notes as additional context. This avoids diminishing returns and ensures focused AI contributions. If issues persist, re-scope the Mini-PRD or the segment.  
 4. Push → CI → Preview deploy.
 
+---
+
+## Parallelization & Agent Execution
+
+- Each mini-PRD is assigned a unique feature branch (default, recommended).
+- If greater agent isolation is required, create a full repo clone or fork for that agent.
+  - Ensure that merging from a clone/fork follows a strict manual PR and review process to reconcile changes.
+  - Note: Forks/clones are rare for typical feature work; branching is sufficient for almost all agent-driven PRDs.
+
+- Before running multiple agents in parallel, perform a lightweight review for overlapping file impact with other active PRDs (gut check).
+- Merge conflicts are resolved at PR time; persistent or complex conflicts may trigger a refactor or sequence adjustment in the next planning cycle.
+
+---
+
 ### Stage 4 · Review & Release
 * Manual QA → finalize PRD ("as-built").  
 * PR → `main` (flagged) → prod deploy.  
@@ -98,7 +112,7 @@ The Mini-PRD should include or link to a clear UI specification, which can be de
    purpose: generate failing tests for Mini-PRD
    lastUpdated: 2025-05-21
    ---
-   ```
+   ````
 
 2. Link back to spawning PRD.
 
@@ -112,6 +126,16 @@ The Mini-PRD should include or link to a clear UI specification, which can be de
 | **Quality**   | Post-prod bugs per PRD    | Issue labels       |
 | **Adherence** | % files passing SPPG lint | CI job             |
 | **AI Drift**  | Hello-World diff %        | Calibration script |
+
+---
+
+## Branching & Agent Isolation: Quick Reference Table
+
+| Approach              | Use case                                     | Merge Process        |
+| --------------------- | -------------------------------------------- | -------------------- |
+| **Feature Branch**    | Standard dev, most AI agent work             | Normal PR, auto/CI   |
+| **Repo Clone/Fork**   | Isolation for high-risk/experimental work    | Manual sync/PR merge |
+| **Clone then Branch** | Multiple isolated experiments within a clone | Advanced/manual      |
 
 ---
 

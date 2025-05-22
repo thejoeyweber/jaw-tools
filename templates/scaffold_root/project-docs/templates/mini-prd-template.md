@@ -1,7 +1,7 @@
 ---
 docType: template
-version: 1.1.0
-lastUpdated: [YYYY-MM-DD] # Date this template file was last changed. User updates this in their Mini-PRD instance.
+version: 1.2.0
+lastUpdated: 2023-10-15
 
 # ─── Mini-PRD Front-matter (parsed by jaw-tools) ───
 prdId: [PRD-NUMBER]         # e.g. 001
@@ -9,8 +9,8 @@ name: [feature-name-slug]   # kebab-case
 description: "[Brief description of the feature]"
 status: proposed            # proposed | accepted | in-progress | completed | deferred
 author: [Your Name/Team]
-northStarRef: /_docs/project-files/NORTH_STAR.md
-sppgRef:      /_docs/project-files/SPPG.md
+northStarRef: /_docs/project-files/north-star.md
+sppgRef:      /_docs/project-files/systemic-principles.md
 
 # jaw-tools configuration for code scoping and context generation
 includes:

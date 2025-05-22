@@ -66,6 +66,16 @@ switch (command) {
     runMiniPrdCommand(args);
     break;
     
+  case 'refresh':
+  case 'update':
+    runRefresh(args);
+    break;
+    
+  case 'refresh-profiles':
+  case 'update-profiles':
+    runRefreshProfiles(args);
+    break;
+    
   case 'version':
   case 'v':
     showVersion();
@@ -452,6 +462,13 @@ Commands:
     add <profile>         Add a new profile
     delete <profile>      Delete a profile
   
+  refresh [options]       Refresh templates from latest version (placed in _docs directory)
+    --force               Force overwrite all files
+    --yes                 Non-interactive mode (no prompts)
+    --pattern=<glob>      Only refresh files matching pattern
+  
+  refresh-profiles        Add new repomix profiles without changing existing ones
+  
   compile <prompt-file>   Compile a prompt template
   
   workflow [sequence]     Run command sequences
@@ -475,6 +492,63 @@ Aliases:
   v = version
   h = help
 `);
+}
+
+// Utility function to run the refresh command
+function runRefresh(args) {
+  try {
+    // Parse options
+    const options = {
+      force: args.includes('--force'),
+      interactive: !args.includes('--yes'),
+      pattern: args.find(arg => arg.startsWith('--pattern='))?.split('=')[1]
+    };
+    
+    // Get refresh module
+    const refresh = require('../lib/refresh');
+    
+    // Run refresh
+    refresh.refreshTemplates(options)
+      .then(result => {
+        if (!result.success) {
+          console.error(`❌ Refresh failed: ${result.error || 'Unknown error'}`);
+          process.exit(1);
+        }
+        process.exit(0);
+      })
+      .catch(err => {
+        console.error(`❌ Error during refresh: ${err.message}`);
+        process.exit(1);
+      });
+  } catch (err) {
+    console.error(`❌ Failed to run refresh: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+// Utility function to run the refresh-profiles command
+function runRefreshProfiles(args) {
+  try {
+    // Get refresh module
+    const refresh = require('../lib/refresh');
+    
+    // Run profile refresh
+    refresh.refreshRepomixProfiles()
+      .then(result => {
+        if (!result.success) {
+          console.error(`❌ Profile refresh failed: ${result.error || 'Unknown error'}`);
+          process.exit(1);
+        }
+        process.exit(0);
+      })
+      .catch(err => {
+        console.error(`❌ Error refreshing profiles: ${err.message}`);
+        process.exit(1);
+      });
+  } catch (err) {
+    console.error(`❌ Failed to refresh profiles: ${err.message}`);
+    process.exit(1);
+  }
 }
 
 // Utility function to load the config file

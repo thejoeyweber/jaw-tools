@@ -65,6 +65,41 @@ The scaffolding process will:
 - Add a jaw-tools user guide to your docs directory
 - Interactively handle file conflicts unless --force is used
 
+### Template Refresh
+
+Refresh your project templates with the latest versions:
+
+```bash
+# Refresh all templates (interactive for conflicts)
+npx jaw-tools refresh
+
+# Force overwrite all templates
+npx jaw-tools refresh --force
+
+# Refresh specific templates (by pattern)
+npx jaw-tools refresh --pattern=project-docs/templates
+
+# Refresh in non-interactive mode
+npx jaw-tools refresh --yes
+```
+
+The refresh process will:
+- Check for new or updated templates
+- Version-check template files to identify updates
+- Interactively handle conflicts with existing files
+- Only update files when newer versions are available
+
+### Repomix Profiles Refresh
+
+Add new repomix profiles without modifying existing ones:
+
+```bash
+# Refresh repomix profiles
+npx jaw-tools refresh-profiles
+```
+
+This will add any new profiles from the jaw-tools templates without modifying your customized profiles.
+
 ### Repomix Profiles
 
 Manage and run Repomix profiles to generate codebase snapshots for AI:
