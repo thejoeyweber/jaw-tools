@@ -19,12 +19,16 @@ const [,, command, ...args] = process.argv;
 const setupPath = normalizePath(__dirname, '..', 'setup.js');
 
 // Initialize if not already done
-const projectRoot = process.cwd();
+const projectRoot = configManager.findProjectRoot();
 const configPath = normalizePath(projectRoot, 'jaw-tools.config.js');
 if (!fs.existsSync(configPath) && command !== 'init' && command !== 'setup' && command !== 'help' && command !== 'h' && command !== 'version' && command !== 'v') {
   console.log('⚠️ jaw-tools configuration not found. Running setup...');
   runSetup();
-  return;
+  
+  // Only exit if there are no additional commands to run (e.g., execution init)
+  if (command !== 'execution' && command !== 'e') {
+    return;
+  }
 }
 
 // Main command switch
@@ -74,6 +78,11 @@ switch (command) {
   case 'refresh-profiles':
   case 'update-profiles':
     runRefreshProfiles(args);
+    break;
+    
+  case 'execution':
+  case 'e':
+    runExecutionCommand(args);
     break;
     
   case 'version':
@@ -165,6 +174,12 @@ function runRepomixCommand(args) {
     // Load config
     const config = loadConfig();
     
+    // Check if this is the generate-from-prd command
+    if (args[0] === 'generate-from-prd') {
+      runRepomixGenerateFromPrd(args.slice(1));
+      return;
+    }
+    
     // Check if .repomix-profiles directory exists
     const repoProfilesDir = normalizePath(projectRoot, config.directories?.repomixProfiles || '.repomix-profiles');
     
@@ -206,6 +221,52 @@ function runRepomixCommand(args) {
     profileMgr.on('close', code => process.exit(code || 0));
   } catch (err) {
     console.error(`❌ Error in repomix command: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+function runRepomixGenerateFromPrd(args) {
+  try {
+    // Load config
+    const config = loadConfig();
+    
+    // Get the repomix module
+    const repomix = require('../lib/repomix');
+    
+    // Parse arguments
+    let prdFile = null;
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] === '--prd-file' && i + 1 < args.length) {
+        prdFile = args[i + 1];
+        i++; // Skip the value in the next iteration
+      }
+    }
+    
+    if (!prdFile) {
+      // Check if the first argument is a file path and not an option
+      if (args.length > 0 && !args[0].startsWith('--')) {
+        prdFile = args[0];
+      } else {
+        console.error('❌ Error: No PRD file specified. Usage: jaw-tools repomix generate-from-prd --prd-file <path>');
+        process.exit(1);
+      }
+    }
+    
+    // Run the generate-from-prd function
+    repomix.generateProfileFromPrd({ prdFile }, config)
+      .then(result => {
+        if (!result.success) {
+          console.error(`❌ Error generating profile: ${result.error}`);
+          process.exit(1);
+        }
+        process.exit(0);
+      })
+      .catch(err => {
+        console.error(`❌ Error generating profile: ${err.message}`);
+        process.exit(1);
+      });
+  } catch (err) {
+    console.error(`❌ Error in repomix generate-from-prd command: ${err.message}`);
     process.exit(1);
   }
 }
@@ -282,6 +343,159 @@ function runWorkflow(args) {
     }
   } catch (err) {
     console.error(`❌ Error in workflow command: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+function runExecutionCommand(args) {
+  try {
+    // Parse and process the execution command arguments
+    const [subCommand, ...subArgs] = args;
+    
+    // Load config
+    const config = loadConfig();
+    
+    // Load execution module
+    const execution = require('../lib/execution');
+    
+    switch (subCommand) {
+      case 'init':
+        // Parse init command parameters
+        let prdFile = null;
+        
+        for (let i = 0; i < subArgs.length; i++) {
+          if (subArgs[i] === '--prd-file' && i + 1 < subArgs.length) {
+            prdFile = subArgs[i + 1];
+            i++; // Skip the value in the next iteration
+          }
+        }
+        
+        if (!prdFile) {
+          console.error('❌ Error: No PRD file specified. Usage: jaw-tools execution init --prd-file <path>');
+          process.exit(1);
+        }
+        
+        // Run the init function
+        execution.initExecution({ prdFile }, config)
+          .then(result => {
+            if (!result.success) {
+              console.error(`❌ Error initializing execution: ${result.error}`);
+              process.exit(1);
+            }
+            
+            console.log(`✅ Execution tracking initialized for PRD ${result.prdId}: ${result.prdName}`);
+            process.exit(0);
+          })
+          .catch(err => {
+            console.error(`❌ Error initializing execution: ${err.message}`);
+            process.exit(1);
+          });
+        break;
+        
+      case 'bundle':
+        // Parse bundle command parameters
+        let bundleOptions = {
+          prdFile: null,
+          stageName: null,
+          metaPrompt: null,
+          repomixProfile: null,
+          prevStageSummary: null
+        };
+        
+        for (let i = 0; i < subArgs.length; i++) {
+          if (subArgs[i].startsWith('--')) {
+            const optionName = subArgs[i].substring(2);
+            if (i + 1 < subArgs.length && !subArgs[i+1].startsWith('--')) {
+              bundleOptions[camelCase(optionName)] = subArgs[i+1];
+              i++; // Skip the value in the next iteration
+            } else {
+              bundleOptions[camelCase(optionName)] = true;
+            }
+          }
+        }
+        
+        // Validate required parameters
+        if (!bundleOptions.prdFile || !bundleOptions.stageName || !bundleOptions.metaPrompt) {
+          console.error('❌ Error: Missing required parameters. Usage: jaw-tools execution bundle --prd-file <path> --stage-name <name> --meta-prompt <path> [--repomix-profile <name>] [--prev-stage-summary <path>]');
+          process.exit(1);
+        }
+        
+        // Run the bundle function
+        execution.bundleExecution(bundleOptions, config)
+          .then(result => {
+            if (!result.success) {
+              console.error(`❌ Error bundling execution: ${result.error}`);
+              process.exit(1);
+            }
+            
+            console.log(`✅ Execution bundle prepared for stage: ${bundleOptions.stageName}`);
+            console.log(`📁 Stage directory: ${path.relative(process.cwd(), result.stageDir)}`);
+            console.log(`📄 Compiled meta-prompt: ${path.relative(process.cwd(), result.compiledMetaPrompt)}`);
+            process.exit(0);
+          })
+          .catch(err => {
+            console.error(`❌ Error bundling execution: ${err.message}`);
+            process.exit(1);
+          });
+        break;
+        
+      case 'record-step':
+        // Parse record-step command parameters
+        let recordOptions = {
+          prdFile: null,
+          stageName: null,
+          instructionsFile: null,
+          logFile: null,
+          feedbackFile: null,
+          status: null
+        };
+        
+        for (let i = 0; i < subArgs.length; i++) {
+          if (subArgs[i].startsWith('--')) {
+            const optionName = subArgs[i].substring(2);
+            if (i + 1 < subArgs.length && !subArgs[i+1].startsWith('--')) {
+              recordOptions[camelCase(optionName)] = subArgs[i+1];
+              i++; // Skip the value in the next iteration
+            } else {
+              recordOptions[camelCase(optionName)] = true;
+            }
+          }
+        }
+        
+        // Validate required parameters
+        if (!recordOptions.prdFile || !recordOptions.stageName || !recordOptions.status) {
+          console.error('❌ Error: Missing required parameters. Usage: jaw-tools execution record-step --prd-file <path> --stage-name <name> --status <status> [--instructions-file <path>] [--log-file <path>] [--feedback-file <path>]');
+          process.exit(1);
+        }
+        
+        // Run the record-step function
+        execution.recordExecutionStep(recordOptions, config)
+          .then(result => {
+            if (!result.success) {
+              console.error(`❌ Error recording execution step: ${result.error}`);
+              process.exit(1);
+            }
+            
+            console.log(`✅ Execution step recorded for stage: ${recordOptions.stageName}`);
+            console.log(`📁 Stage directory: ${path.relative(process.cwd(), result.stageDir)}`);
+            console.log(`🔖 Status: ${result.status}`);
+            process.exit(0);
+          })
+          .catch(err => {
+            console.error(`❌ Error recording execution step: ${err.message}`);
+            process.exit(1);
+          });
+        break;
+        
+      default:
+        console.log('🔍 Execution Commands:');
+        console.log('  jaw-tools execution init --prd-file <path>');
+        console.log('  jaw-tools execution bundle --prd-file <path> --stage-name <name> --meta-prompt <path> [--repomix-profile <name>] [--prev-stage-summary <path>]');
+        console.log('  jaw-tools execution record-step --prd-file <path> --stage-name <name> --status <status> [--instructions-file <path>] [--log-file <path>] [--feedback-file <path>]');
+        break;
+    }
+  } catch (err) {
+    console.error(`❌ Error in execution command: ${err.message}`);
     process.exit(1);
   }
 }
@@ -422,7 +636,7 @@ function runMiniPrdCommand(args) {
         
       default:
         console.log('🔍 Mini-PRD Commands:');
-        console.log('  jaw-tools mini-prd create <name> [--options]');
+        console.log('  jaw-tools mini-prd create <n> [--options]');
         console.log('  jaw-tools mini-prd update <id> [--options]');
         console.log('  jaw-tools mini-prd snapshot <id>');
         console.log('  jaw-tools mini-prd list');
@@ -461,6 +675,7 @@ Commands:
     run <profile>         Generate a snapshot with the specified profile
     add <profile>         Add a new profile
     delete <profile>      Delete a profile
+    generate-from-prd     Generate a profile from a Mini-PRD file
   
   refresh [options]       Refresh templates from latest version (placed in _docs directory)
     --force               Force overwrite all files
@@ -476,10 +691,15 @@ Commands:
     <sequence-name>       Run the specified sequence
     
   mini-prd <subcommand>   Manage Mini-PRDs
-    create <name>         Create a new Mini-PRD
+    create <n>            Create a new Mini-PRD
     update <id>           Update an existing Mini-PRD
     snapshot <id>         Generate a snapshot for a Mini-PRD
     list                  Show all Mini-PRDs
+  
+  execution <subcommand>  Manage AI-assisted execution workflow
+    init                  Initialize execution tracking for a Mini-PRD
+    bundle                Bundle context for an execution stage
+    record-step           Record execution step results and generate summary
   
   version                 Show jaw-tools version
   help                    Show this help
@@ -489,6 +709,7 @@ Aliases:
   c = compile
   w = workflow
   mprd = mini-prd
+  e = execution
   v = version
   h = help
 `);
@@ -559,4 +780,9 @@ function loadConfig() {
     console.error(`❌ Error loading config: ${err.message}`);
     return {};
   }
+}
+
+// Utility function to convert kebab-case to camelCase
+function camelCase(str) {
+  return str.replace(/-([a-z])/g, (match, letter) => letter.toUpperCase());
 } 

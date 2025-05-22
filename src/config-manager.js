@@ -41,19 +41,64 @@ const defaultConfig = {
     userGuide: {
       destinationFileName: 'jaw-tools-guide.md'
     }
+  },
+  executionWorkflow: {
+    baseDir: '_docs/project-docs/execution',
+    centralMetaPromptDir: '_docs/prompts/meta',
+    coreDocsForBundling: {
+      sppg: '_docs/project-docs/SPPG.md',
+      northStar: '_docs/project-docs/NORTH_STAR.md'
+    },
+    defaultRepomixProfile: 'full-codebase',
+    tempSubDirs: {
+      codeSnapshots: 'temp_code_snapshots',
+      compiledPrompts: 'temp_compiled_prompts'
+    }
   }
 };
+
+/**
+ * Determines the project root by searching for jaw-tools.config.js
+ * starting from the current directory and traversing upwards
+ * @returns {string} The absolute path to the project root
+ */
+function findProjectRoot() {
+  let currentDir = process.cwd();
+  const rootDir = path.parse(currentDir).root;
+  
+  // Search for jaw-tools.config.js up to the file system root
+  while (currentDir !== rootDir) {
+    const configPath = path.join(currentDir, 'jaw-tools.config.js');
+    if (fs.existsSync(configPath)) {
+      return currentDir;
+    }
+    
+    // Move up one directory
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
+      // We've reached the root directory
+      break;
+    }
+    currentDir = parentDir;
+  }
+  
+  // If no config file found, use current working directory as project root
+  return process.cwd();
+}
 
 /**
  * Get configuration from project's jaw-tools.config.js file,
  * falling back to defaults for any missing properties.
  */
 function getConfig() {
-  const configPath = path.join(process.cwd(), 'jaw-tools.config.js');
+  const projectRoot = findProjectRoot();
+  const configPath = path.join(projectRoot, 'jaw-tools.config.js');
   let projectConfig = {};
   
   if (fs.existsSync(configPath)) {
     try {
+      // Clear the require cache to ensure we get the latest version
+      delete require.cache[require.resolve(configPath)];
       projectConfig = require(configPath);
     } catch (error) {
       console.warn(`Warning: Could not load config from ${configPath}. Using defaults.`);
@@ -64,7 +109,12 @@ function getConfig() {
   }
   
   // Deep merge default config with project config
-  return mergeConfigs(defaultConfig, projectConfig);
+  const mergedConfig = mergeConfigs(defaultConfig, projectConfig);
+  
+  // Store the determined project root in the config for access by all modules
+  mergedConfig.__projectRoot = projectRoot;
+  
+  return mergedConfig;
 }
 
 /**
@@ -88,5 +138,6 @@ function mergeConfigs(defaultObj, overrideObj) {
 
 module.exports = {
   getConfig,
-  defaultConfig
+  defaultConfig,
+  findProjectRoot
 }; 

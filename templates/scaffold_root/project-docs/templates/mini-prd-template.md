@@ -11,6 +11,7 @@ status: proposed            # proposed | accepted | in-progress | completed | de
 author: [Your Name/Team]
 northStarRef: /_docs/project-files/north-star.md
 sppgRef:      /_docs/project-files/systemic-principles.md
+executionTrackingFolder: "" # Example: _docs/project-docs/execution/PRD-042-AuthFeature/ (relative to Project Root)
 
 # jaw-tools configuration for code scoping and context generation
 includes:
@@ -26,6 +27,13 @@ plannedFiles: # Patterns for where new files are expected to be created
   - features/[feature-name-slug]/ui/[NewComponent].tsx
   - features/[feature-name-slug]/api/[new-endpoint].ts
   - features/[feature-name-slug]/hooks/[useNewLogic].ts
+
+# jaw-tools configuration for Repomix profile generation
+repomixContext:
+  profileName: "" # To be filled by user or tool
+  description: ""
+  include: [] # Will be populated from 'includes' above if not specified
+  ignore: [] # Will be populated from 'excludes' above if not specified
 ---
 
 # Mini-PRD [PRD-NUMBER] – [Feature Title]
@@ -86,7 +94,13 @@ plannedFiles: # Patterns for where new files are expected to be created
 <!-- - [ ] `features/[feature-name-slug]/hooks/useFeatureLogic.ts` - Purpose: [e.g., Encapsulates business logic for Y] -->
 <!-- jaw-tools updates will be injected below this line -->
 
-## 8 · Repomix Snapshot
+## 8 · Iterative Execution & History
+
+Detailed execution steps, prompts, logs, and summaries for this Mini-PRD are tracked in its [dedicated execution folder](./execution/{prdID}-{prdName}/). *(This link becomes active after running `npx jaw-tools execution init` for this PRD. The exact relative path may vary based on PRD location vs. execution folder location).*
+
+A PRD-specific Repomix profile can be generated based on the `repomixContext` section in this document's front-matter using `npx jaw-tools repomix generate-from-prd`.
+
+## 9 · Repomix Snapshot
 A Repomix code snapshot for this PRD, capturing the relevant code context, can be generated (or updated) using `jaw-tools`:
 ```bash
 npx jaw-tools mini-prd snapshot [PRD-NUMBER]
@@ -94,11 +108,11 @@ npx jaw-tools mini-prd snapshot [PRD-NUMBER]
 **Latest snapshot:** `.repomix-profiles/outputs/prd-[PRD-NUMBER]-[name].xml`
 (This Repomix snapshot is an XML representation of the relevant code context defined by the 'includes'/'excludes' patterns. It allows targeted code segments to be provided to LLMs for analysis, modification, or generation tasks, avoiding the need to process the entire codebase. This is particularly useful for focused prompts in tools like ChatGPT, Gemini, or within IDEs like Cursor. Detailed documentation for Repomix can be found in its dedicated service-docs.md.)
 
-## 9 · Design / UX (Optional)
+## 10 · Design / UX (Optional)
 - Link to Figma mockups: [URL]
 - Key UI/UX considerations: [Notes]
 
-## 10 · Notes / Open Questions
+## 11 · Notes / Open Questions
 - [Any additional notes, assumptions, or questions to be addressed.]
 
 ---
