@@ -10,48 +10,40 @@ AI development utilities for Repomix and prompt compilation. This toolkit provid
 
 ## Installation
 
-Install jaw-tools from GitHub:
+### One-Step Installation (Recommended)
+
+The easiest way to get started is with our one-step initialization:
 
 ```bash
-# RECOMMENDED METHOD (Works Reliably)
+# Install jaw-tools
 npm install --save-dev https://github.com/thejoeyweber/jaw-tools/tarball/master
+
+# Run the complete initialization process
+npx jaw-tools-init
 ```
 
-After installation, jaw-tools will perform minimal setup with essential directories and a basic configuration file. To complete the setup with guided configuration and dependency checks, run:
+This will:
+1. Set up jaw-tools with guided configuration and dependency checks
+2. Scaffold standard documentation files
+3. Verify your installation is working correctly
+
+### Manual Installation
+
+If you prefer more control, you can perform each step individually:
 
 ```bash
+# Step 1: Install jaw-tools
+npm install --save-dev https://github.com/thejoeyweber/jaw-tools/tarball/master
+
+# Step 2: Run guided setup (checks dependencies and configures your project)
 npx jaw-tools setup
-```
 
-And to scaffold the standard documentation suite and project files:
-
-```bash
+# Step 3: Scaffold documentation suite (adds standard project docs)
 npx jaw-tools scaffold
+
+# Step 4: Check installation status
+npx jaw-tools doctor
 ```
-
-## Quick Start
-
-After installing jaw-tools, follow these steps for a complete setup:
-
-1. **Install jaw-tools**:
-   ```bash
-   npm install --save-dev https://github.com/thejoeyweber/jaw-tools/tarball/master
-   ```
-
-2. **Run guided setup** (checks dependencies and configures your project):
-   ```bash
-   npx jaw-tools setup
-   ```
-
-3. **Scaffold documentation suite** (adds standard project docs):
-   ```bash
-   npx jaw-tools scaffold
-   ```
-
-4. **Check installation status**:
-   ```bash
-   npx jaw-tools doctor
-   ```
 
 ## Usage
 

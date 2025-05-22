@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "AI development utilities for Repomix and prompt compilation",
   "bin": {
-    "jaw-tools": "./bin/jaw-tools-cli.js"
+    "jaw-tools": "./bin/jaw-tools-cli.js",
+    "jaw-tools-init": "./bin/jaw-tools-init.js"
   },
   "scripts": {
     "preinstall": "node -e \"try { require('fs').chmodSync('./bin/jaw-tools-cli.js', '755'); console.log('✅ Set executable permissions'); } catch(e) { console.warn('⚠️ Could not set permissions:', e.message); }\"",
