@@ -11,7 +11,8 @@ const defaultConfig = {
     repomixProfiles: '.repomix-profiles',
     docs: '_docs',
     prompts: '_docs/prompts',
-    compiledPrompts: '_docs/prompts-compiled'
+    compiledPrompts: '_docs/prompts-compiled',
+    projectDocs: '_docs/project-docs'
   },
   repomix: {
     defaultProfiles: {

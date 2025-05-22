@@ -3,6 +3,16 @@
 const path = require('path');
 const fs = require('fs');
 
+// Global error handler for uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error(`\n❌ Fatal error: ${err.message}`);
+  if (err.stack) {
+    console.error(`\nStack trace: ${err.stack}`);
+  }
+  console.error('\nIf this issue persists, please report it at https://github.com/jaw-tools/issues');
+  process.exit(1);
+});
+
 // Import utilities and config manager
 const configManager = require('../src/config-manager');
 const { ensureDir } = require('../src/utils');
@@ -17,6 +27,20 @@ const [,, command, ...args] = process.argv;
 
 // Path to the setup script
 const setupPath = normalizePath(__dirname, '..', 'setup.js');
+
+// List of valid commands for better error messages
+const validCommands = [
+  'init', 'setup', 'scaffold', 'doctor', 'status', 
+  'repomix', 'profile', 'r', 
+  'compile', 'compile-prompt', 'c',
+  'workflow', 'wf', 'w',
+  'mini-prd', 'mprd',
+  'refresh', 'update',
+  'refresh-profiles', 'update-profiles',
+  'execution', 'e',
+  'version', 'v',
+  'help', 'h'
+];
 
 // Initialize if not already done
 const projectRoot = configManager.findProjectRoot();
@@ -90,11 +114,33 @@ switch (command) {
     showVersion();
     break;
     
+  case 'meta-prompt':
+    console.error(`❌ The meta-prompt command is not available. Use 'execution bundle' instead with the --meta-prompt option.`);
+    console.log(`Example: npx jaw-tools execution bundle --prd-file <path> --stage-name <n> --meta-prompt <path>`);
+    process.exit(1);
+    break;
+    
   case 'help':
   case 'h':
-  default:
     showHelp();
     break;
+    
+  case undefined:
+  case '':
+    console.error(`❌ No command specified. Run 'npx jaw-tools help' to see available commands.`);
+    process.exit(1);
+    break;
+    
+  default:
+    // Check if it's close to a valid command and suggest alternatives
+    const closest = findClosestCommand(command);
+    if (closest) {
+      console.error(`❌ Unknown command: '${command}'. Did you mean '${closest}'?`);
+    } else {
+      console.error(`❌ Unknown command: '${command}'`);
+    }
+    console.log(`Run 'npx jaw-tools help' to see available commands.`);
+    process.exit(1);
 }
 
 // Helper Functions
@@ -548,7 +594,7 @@ function runMiniPrdCommand(args) {
           const id = manager.createPrd(name, options);
           console.log(`✅ Created Mini-PRD ${id}: ${name}`);
           const filename = `${id}-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.md`;
-          console.log(`📝 Markdown file: _docs/mini-prds/${filename}`);
+          console.log(`📝 Markdown file: _docs/project-docs/prds/${filename}`);
         } catch (err) {
           console.error(`❌ Error creating Mini-PRD: ${err.message}`);
           process.exit(1);
@@ -785,4 +831,44 @@ function loadConfig() {
 // Utility function to convert kebab-case to camelCase
 function camelCase(str) {
   return str.replace(/-([a-z])/g, (match, letter) => letter.toUpperCase());
+}
+
+// Helper function to find the closest valid command
+function findClosestCommand(input) {
+  const closest = validCommands.reduce((a, b) => {
+    const distanceA = levenshteinDistance(a, input);
+    const distanceB = levenshteinDistance(b, input);
+    return distanceA < distanceB ? a : b;
+  });
+  return closest;
+}
+
+// Helper function to calculate levenshtein distance
+function levenshteinDistance(a, b) {
+  const matrix = [];
+
+  // Initialize the matrix
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  // Fill in the rest of the matrix
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          Math.min(matrix[i][j - 1] + 1, // insertion
+          matrix[i - 1][j] + 1) // deletion
+        );
+      }
+    }
+  }
+
+  return matrix[b.length][a.length];
 } 

@@ -194,6 +194,56 @@ async function checkCommandAvailability(command) {
   });
 }
 
+/**
+ * Enhanced error handling with consistent formatting
+ * @param {string} message The error message
+ * @param {Object} options Additional options for the error
+ * @param {Error} options.originalError The original error that was caught
+ * @param {string} options.command The command that failed
+ * @param {string} options.suggestion A suggestion for how to fix the error
+ * @returns {Error} A formatted error object
+ */
+function formatError(message, options = {}) {
+  let formattedMessage = `❌ Error: ${message}`;
+  
+  if (options.command) {
+    formattedMessage += `\nCommand: ${options.command}`;
+  }
+  
+  if (options.suggestion) {
+    formattedMessage += `\nSuggestion: ${options.suggestion}`;
+  }
+  
+  if (options.originalError) {
+    formattedMessage += `\nDetails: ${options.originalError.message}`;
+    if (options.originalError.stack && process.env.DEBUG) {
+      formattedMessage += `\nStack: ${options.originalError.stack}`;
+    }
+  }
+  
+  const error = new Error(formattedMessage);
+  error.isFormatted = true;
+  
+  return error;
+}
+
+/**
+ * Handle command error with consistent formatting
+ * @param {Error} error The error to handle
+ * @param {string} command The command that failed
+ */
+function handleCommandError(error, command) {
+  if (error.isFormatted) {
+    console.error(error.message);
+  } else {
+    console.error(`❌ Error in '${command}' command: ${error.message}`);
+    if (error.stack && process.env.DEBUG) {
+      console.error(`Stack: ${error.stack}`);
+    }
+  }
+  process.exit(1);
+}
+
 module.exports = {
   pad,
   getTokenCount,
@@ -204,5 +254,7 @@ module.exports = {
   askQuestion,
   resolveFileConflict,
   getRenameSuffix,
-  checkCommandAvailability
+  checkCommandAvailability,
+  formatError,
+  handleCommandError
 }; 
