@@ -6,18 +6,21 @@
     "jaw-tools": "./bin/jaw-tools-cli.js"
   },
   "scripts": {
-    "postinstall": "node -e \"try { require('fs-extra'); require('./setup.js'); } catch (err) { console.error('Error during postinstall:', err.message); process.exit(0); }\"",
+    "preinstall": "node -e \"try { require('fs').chmodSync('./bin/jaw-tools-cli.js', '755'); console.log('✅ Set executable permissions'); } catch(e) { console.warn('⚠️ Could not set permissions:', e.message); }\"",
+    "postinstall": "node setup.js --postinstall",
     "repomix": "jaw-tools repomix",
     "compile-prompt": "jaw-tools compile",
-    "next-gen": "jaw-tools next-gen",
-    "configure": "jaw-tools setup"
+    "workflow": "jaw-tools workflow",
+    "setup": "jaw-tools setup",
+    "scaffold": "jaw-tools scaffold",
+    "doctor": "jaw-tools doctor",
+    "test-install": "node test-install.js"
   },
   "dependencies": {
     "fs-extra": "^11.3.0",
     "glob": "^10.4.5",
     "gray-matter": "^4.0.3",
-    "js-yaml": "^4.1.0",
-    "repomix": ">=0.3.0"
+    "js-yaml": "^4.1.0"
   },
   "peerDependencies": {
     "repomix": ">=0.3.0"
@@ -28,12 +31,20 @@
   "files": [
     "bin",
     "lib",
-    "templates",
-    "templates/.repo_ignore",
     "src",
+    "templates",
+    "templates/README.md",
+    "templates/jaw-tools.config.js",
+    "templates/scaffold_root",
+    "templates/scaffold_root/_docs",
+    "templates/scaffold_root/_docs/prompts",
+    "templates/scaffold_root/_docs/prompts-compiled",
+    "templates/scaffold_root/_docs/project-docs",
+    "templates/.repo_ignore",
     "setup.js",
     ".repo_ignore",
-    "README.md"
+    "README.md",
+    "test-install.js"
   ],
   "keywords": [
     "AI",

@@ -2,9 +2,9 @@
 module.exports = {
   "directories": {
     "repomixProfiles": ".repomix-profiles",
-    "docs": "docs",
-    "prompts": "docs/prompts",
-    "compiledPrompts": "docs/prompts-compiled"
+    "docs": "_docs",
+    "prompts": "_docs/prompts",
+    "compiledPrompts": "_docs/prompts-compiled"
   },
   "repomix": {
     "defaultProfiles": {
@@ -27,28 +27,37 @@ module.exports = {
     "variables": {},
     "useNumberedOutputs": true
   },
-  "nextGen": {
-    "commands": [
-      [
-        "repomix-profile",
+  "workflow": {
+    "sequences": {
+      "default": [
         [
-          "run",
-          "full-codebase"
-        ]
-      ],
-      [
-        "repomix-profile",
+          "repomix-profile",
+          [
+            "run",
+            "full-codebase"
+          ]
+        ],
         [
-          "run",
-          "docs-only"
-        ]
-      ],
-      [
-        "compile-prompt",
+          "repomix-profile",
+          [
+            "run",
+            "docs-only"
+          ]
+        ],
         [
-          "_docs/prompts/example.md"
+          "compile-prompt",
+          [
+            "_docs/prompts/example.md"
+          ]
         ]
       ]
-    ]
+    },
+    "defaultSequence": "default"
+  },
+  "projectScaffolding": {
+    "scaffoldTargetRootDir": ".",
+    "userGuide": {
+      "destinationFileName": "jaw-tools-guide.md"
+    }
   }
 };

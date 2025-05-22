@@ -5,7 +5,8 @@ AI development utilities for Repomix and prompt compilation. This toolkit provid
 - Repomix profile management for generating codebase snapshots
 - Prompt template compilation with file inclusion
 - Sequential command execution for automated workflows
-- Mini-PRD management for feature slice development
+- Project scaffolding for documentation and standard files
+- Diagnostic tools for setup validation
 
 ## Installation
 
@@ -16,34 +17,61 @@ Install jaw-tools from GitHub:
 npm install --save-dev https://github.com/thejoeyweber/jaw-tools/tarball/master
 ```
 
-After installation, jaw-tools will set up the necessary directories and configuration in your project.
-
-If you encounter issues with the automatic setup, you can run it manually:
+After installation, jaw-tools will perform minimal setup with essential directories and a basic configuration file. To complete the setup with guided configuration and dependency checks, run:
 
 ```bash
-# Install dependencies first
-npm install fs-extra glob repomix
-
-# Then run setup
 npx jaw-tools setup
 ```
 
-> **Note**: Other installation methods like `npm install github:thejoeyweber/jaw-tools` or using HTTPS Git URLs may not work reliably due to Git authentication and proxy issues. The tarball URL approach above is the most reliable method.
+And to scaffold the standard documentation suite and project files:
+
+```bash
+npx jaw-tools scaffold
+```
 
 ## Quick Start
 
-After installation, jaw-tools will automatically run the setup script. You can also run it manually:
+After installing jaw-tools, follow these steps for a complete setup:
 
-```bash
-npx jaw-tools setup
-```
+1. **Install jaw-tools**:
+   ```bash
+   npm install --save-dev https://github.com/thejoeyweber/jaw-tools/tarball/master
+   ```
 
-This will:
-1. Create the necessary directory structure
-2. Generate a `jaw-tools.config.js` in your project root
-3. Add convenience scripts to your package.json
+2. **Run guided setup** (checks dependencies and configures your project):
+   ```bash
+   npx jaw-tools setup
+   ```
+
+3. **Scaffold documentation suite** (adds standard project docs):
+   ```bash
+   npx jaw-tools scaffold
+   ```
+
+4. **Check installation status**:
+   ```bash
+   npx jaw-tools doctor
+   ```
 
 ## Usage
+
+### Project Scaffolding
+
+Scaffold the standard documentation structure and files to your project:
+
+```bash
+# Standard scaffolding (interactive for existing files)
+npx jaw-tools scaffold
+
+# Force overwriting of existing files
+npx jaw-tools scaffold --force
+```
+
+The scaffolding process will:
+- Create the standard documentation directory structure
+- Copy template files for various document types
+- Add a jaw-tools user guide to your docs directory
+- Interactively handle file conflicts unless --force is used
 
 ### Repomix Profiles
 
@@ -72,7 +100,7 @@ Compile prompt templates with file content inclusion:
 npx jaw-tools compile _docs/prompts/my-prompt.md
 ```
 
-In your templates, you can include file contents using the `{{ path/to/file }}` syntax:
+In your templates, you can include file contents using the `{{path/to/file}}` syntax (no spaces between brackets):
 
 ```markdown
 # My Template
@@ -80,70 +108,67 @@ In your templates, you can include file contents using the `{{ path/to/file }}` 
 Here's the project configuration:
 
 ```json
-{{ package.json }}
+{{package.json}}
 ```
 
-### Sequential Generation
+You can also include files matching a glob pattern:
 
-Run a sequence of commands defined in your configuration:
+```javascript
+{{src/**/*.js}}
+```
+
+IMPORTANT: Make sure there are no spaces between the double braces and the file path, otherwise it will result in an error like: `<!-- ERROR: Could not read file file-path -->`.
+
+### Sequential Command Runner
+
+You can define sequences of commands to run in order. This is useful for automating common workflows like generating snapshots and compiling prompts.
+
+```js
+// In jaw-tools.config.js
+workflow: {
+  sequences: {
+    'default': [
+      ['repomix-profile', ['run', 'full-codebase']],
+      ['repomix-profile', ['run', 'docs-only']],
+      ['compile-prompt', ['_docs/prompts/example.md']]
+    ],
+    'custom': [
+      ['repomix-profile', ['run', 'docs-only']],
+      ['compile-prompt', ['_docs/prompts/custom-prompt.md']]
+    ]
+  },
+  defaultSequence: 'default'
+}
+```
+
+Run the default sequence:
+```bash
+npx jaw-tools workflow
+```
+
+Run a specific sequence:
+```bash
+npx jaw-tools workflow custom
+```
+
+List available sequences:
+```bash
+npx jaw-tools workflow list
+```
+
+### System Diagnostics
+
+Check the health of your jaw-tools setup:
 
 ```bash
-npx jaw-tools next-gen
+npx jaw-tools doctor
 ```
 
-### Mini-PRD Management
-
-Manage mini-PRDs (Product Requirements Documents) for feature slice development:
-
-```bash
-# Create a new mini-PRD
-npx jaw-tools mini-prd create "Auth Feature" --includes "src/features/auth/**,src/components/Auth*.jsx" --excludes "**/*.test.js,**/*.stories.jsx" --plannedFiles "src/features/auth/passwordReset.js"
-
-# Check file status for a mini-PRD
-npx jaw-tools mini-prd status 001
-
-# Generate a Repomix snapshot for a mini-PRD
-npx jaw-tools mini-prd snapshot 001
-
-# Update a mini-PRD
-npx jaw-tools mini-prd update 001 --add "src/utils/auth-utils.js"
-
-# View version history for a mini-PRD
-npx jaw-tools mini-prd history 001
-
-# Sync mini-PRDs from markdown files
-npx jaw-tools mini-prd sync
-
-# List all mini-PRDs
-npx jaw-tools mini-prd list
-```
-
-Mini-PRDs use front-matter in markdown files to store configuration:
-
-```markdown
----
-prdId: '001'
-name: auth-feature
-description: "Authentication system"
-includes: 
-  - src/features/auth/**
-  - src/components/Auth*.jsx
-excludes:
-  - **/*.test.js
-plannedFiles:
-  - src/features/auth/passwordReset.js
----
-
-# Mini-PRD: 001 - Authentication System
-
-... rest of the mini-PRD content ...
-```
-
-The mini-PRD system automatically:
-- Tracks which files are part of a feature slice
-- Identifies which planned files have been created
-- Maintains version history of the PRD's scope
-- Generates Repomix snapshots for AI context
+This will verify:
+- Configuration file exists
+- Required directories are present
+- Repomix integration is working
+- Profiles manager is properly installed
 
 ## Configuration
 
@@ -157,8 +182,7 @@ module.exports = {
     docs: '_docs',
     prompts: '_docs/prompts',
     compiledPrompts: '_docs/prompts-compiled',
-    miniPrds: '_docs/mini-prds',
-    miniPrdsConfig: '.mini-prds'
+    miniPrdTemplatePath: '_docs/project-docs/templates/mini-prd-template.md'
   },
   
   // Repomix configuration
@@ -166,52 +190,68 @@ module.exports = {
     defaultProfiles: {
       'full-codebase': {
         include: '**',
-        ignore: '.git/**,node_modules/**',
+        ignore: '.git/**,node_modules/**,.next/**,out/**,build/**,coverage/**',
+        style: 'xml',
+        compress: false
+      },
+      'docs-only': {
+        include: '_docs/**',
+        ignore: '_docs/prompts-compiled/**',
         style: 'xml',
         compress: false
       }
-    }
+    },
+    env: {}
   },
   
   // Prompt compiler configuration
   promptCompiler: {
-    variables: {
-      // Variables to replace in templates
-      // 'PROJECT_NAME': 'My Project'
-    },
+    variables: {},
     useNumberedOutputs: true
   },
   
-  // Next-gen sequential commands
-  nextGen: {
-    commands: [
-      ['repomix-profile', ['run', 'full-codebase']],
-      ['compile-prompt', ['_docs/prompts/example.md']]
-    ]
+  // Sequential command workflows
+  workflow: {
+    sequences: {
+      'default': [
+        ['repomix-profile', ['run', 'full-codebase']],
+        ['repomix-profile', ['run', 'docs-only']],
+        ['compile-prompt', ['_docs/prompts/example.md']]
+      ],
+      'another_sequence': [
+        // Define additional command sequences here
+      ]
+    },
+    defaultSequence: 'default'
   },
   
-  // Mini-PRD configuration
-  miniPrds: {
-    directory: '_docs/mini-prds',
-    configDirectory: '.mini-prds',
-    template: '_docs/templates/mini-prd-template.md',
-    repomixOutputDir: '.repomix-profiles/outputs',
-    updateMarkdownOnSync: true
+  // Project scaffolding configuration
+  projectScaffolding: {
+    scaffoldTargetRootDir: '.',
+    userGuide: {
+      destinationFileName: 'jaw-tools-guide.md'
+    }
   }
 };
 ```
 
 ## Command Reference
 
-| Command | Aliases | Description |
-|---------|---------|-------------|
-| `jaw-tools setup` | `init` | Setup jaw-tools in your project |
-| `jaw-tools repomix` | `profile`, `r` | Manage and run Repomix profiles |
-| `jaw-tools compile` | `c` | Compile a prompt template |
-| `jaw-tools next-gen` | `seq`, `n` | Run the sequence of commands |
-| `jaw-tools mini-prd` | `mprd` | Manage mini-PRDs for feature slices |
-| `jaw-tools version` | `v` | Show version |
-| `jaw-tools help` | `h` | Show this help message |
+| Command | Description |
+|---------|-------------|
+| `jaw-tools setup` | Interactive setup with dependency checks |
+| `jaw-tools scaffold [--force]` | Scaffold standard documentation suite |
+| `jaw-tools doctor` | Check jaw-tools setup status |
+| `jaw-tools repomix list` | List available repomix profiles |
+| `jaw-tools repomix run <profile>` | Generate a codebase snapshot |
+| `jaw-tools compile <prompt-file>` | Compile a prompt template |
+| `jaw-tools workflow list` | List available command sequences |
+| `jaw-tools workflow [sequence-name]` | Run a command sequence |
+| `jaw-tools mini-prd create <name>` | Create a new Mini-PRD |
+| `jaw-tools mini-prd update <id>` | Update a Mini-PRD |
+| `jaw-tools mini-prd snapshot <id>` | Generate a snapshot for a Mini-PRD |
+| `jaw-tools version` | Show version information |
+| `jaw-tools help` | Show help message |
 
 ## Troubleshooting
 
@@ -240,15 +280,29 @@ If you experience problems during installation:
    npm install fs-extra glob repomix
    ```
 
-3. **Missing Templates**: If template files are reported missing, you can manually create the required directory structure:
+3. **Run the doctor**: If you're having issues, check your setup:
    ```bash
-   mkdir -p .repomix-profiles/outputs _docs/prompts _docs/prompts-compiled _docs/mini-prds
+   npx jaw-tools doctor
    ```
+   This will identify problems and suggest fixes.
 
 ### Common Issues
 
 - **Configuration Not Found**: If you see a "configuration not found" error, run `npx jaw-tools setup` to create the configuration file.
-- **Permissions Problems**: Ensure you have write permissions to the directories where jaw-tools needs to create files.
-- **Node.js Version**: jaw-tools requires Node.js 14 or higher. Check your version with `node --version`.
-- **Post-Install Script Failures**: If the post-install script fails, it's designed to exit gracefully. You can still run `npx jaw-tools setup` manually to complete the installation.
-- **Mini-PRD Issues**: If mini-PRD commands fail, ensure you have the `fs-extra`, `glob`, and `gray-matter` packages installed. 
+
+- **Missing Repomix**: jaw-tools requires the repomix package for some features. Install it if prompted:
+  ```bash
+  npm install repomix
+  ```
+
+- **Scaffolding Errors**: If you encounter errors during scaffolding, try using the `--force` flag:
+  ```bash
+  npx jaw-tools scaffold --force
+  ```
+
+- **Template Compilation Errors**: If you see "Could not read file" errors, make sure your template syntax uses `{{file-path}}` without spaces between the braces and the file path.
+
+- **Workflow Command Failures**: If workflow command sequences fail, check that all required tools are available. You can see the full command list with:
+  ```bash
+  npx jaw-tools workflow list
+  ``` 

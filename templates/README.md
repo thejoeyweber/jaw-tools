@@ -1,124 +1,109 @@
-# AI Development Utilities
+# jaw-tools User Guide
 
-This document provides instructions on how to use the AI-driven development utilities integrated into this project via jaw-tools.
+This guide provides instructions for using jaw-tools in your project. jaw-tools offers utilities for working with AI tools, documentation, and code generation.
 
-## 1. Repomix Profile Manager
+## Available Commands
 
-Repomix is used to generate codebase snapshots (profiles) for AI analysis. This helps in providing relevant context to AI models. All configuration and outputs are stored in the `.repomix-profiles/` directory (which is added to `.gitignore`).
+### Repomix Profile Management
 
-### Managing Profiles
-
-Profiles define which parts of the codebase to include or exclude in a snapshot. They are managed using the `jaw-tools repomix` command.
-
-### Common Commands
-
-1.  **List available profiles:**
-    ```bash
-    npm run repomix list
-    ```
-
-2.  **Run a specific profile:**
-    This will generate an XML (or other configured format) file in `.repomix-profiles/outputs/<profile-name>.xml`.
-    ```bash
-    npm run repomix run <profile-name>
-    ```
-    Example:
-    ```bash
-    npm run repomix run full-codebase
-    ```
-
-3.  **Add or Update a profile:**
-    ```bash
-    npm run repomix add <profile-name> "[include-patterns]" "[ignore-patterns]" [style] [--compress]
-    ```
-    -   `<profile-name>`: Name for the profile (e.g., `frontend-components`).
-    -   `[include-patterns]`: Optional. Glob patterns for files/directories to include (e.g., `"app/**,components/**"`). Enclose in quotes, especially if it contains spaces or multiple patterns.
-    -   `[ignore-patterns]`: Optional. Glob patterns to ignore (e.g., `"*.test.js,*.spec.js"`).
-    -   `[style]`: Optional. Output style (default: `xml`).
-    -   `[--compress]`: Optional. Flag to enable compression.
-
-    Example:
-    ```bash
-    npm run repomix add docs-only "_docs/project-docs/**" "" xml
-    ```
-    If a profile with the given name already exists, it will be updated.
-
-4.  **Delete a profile:**
-    This will also delete the corresponding output file if it exists.
-    ```bash
-    npm run repomix delete <profile-name>
-    ```
-    Example:
-    ```bash
-    npm run repomix delete old-profile
-    ```
-
-### Customizing Profiles
-You can directly edit the `.repomix-profiles/profiles.json` file to define or modify profiles.
-
-## 2. Prompt Compilation Script
-
-This utility helps consolidate multiple files from your codebase into a single prompt file, useful for preparing comprehensive context for AI models.
-
--   **Prompt templates location:** `_docs/prompts/`
--   **Compiled prompts output:** `_docs/prompts-compiled/` (this directory is in `.gitignore`)
-
-### Usage
-
-1.  **Create a Prompt Template:**
-    Create a Markdown file (e.g., `_docs/prompts/my-feature-prompt.md`).
-    In this template, use `{{ path/to/your/file.ext }}` placeholders to specify which files from your project you want to include. Paths should be relative to the project root.
-
-    Example (`_docs/prompts/example.md`):
-    ```markdown
-    # My Example Prompt
-    Here is the content of `app/layout.tsx`:
-    ```tsx
-    {{ app/layout.tsx }}
-    ```
-    ```
-
-2.  **Run the Compilation Script:**
-    Execute the script, providing the path to your template file:
-    ```bash
-    npm run compile-prompt _docs/prompts/my-prompt.md
-    ```
-
-3.  **Output:**
-    The script generates a new Markdown file in `_docs/prompts-compiled/` (e.g., `001-my-prompt.md`).
-
-## 3. Sequential Generation Script (next-gen)
-
-For convenience, jaw-tools provides a sequential runner to execute a predefined sequence of commands. This is useful for a full refresh of commonly used artifacts.
-
-### Usage
-
-You can run this sequential script using npm:
+Generate snapshots of your codebase for AI tools:
 
 ```bash
+# List available profiles
+npm run repomix list
+
+# Run a specific profile
+npm run repomix run full-codebase
+```
+
+You can create custom profiles for different parts of your codebase:
+
+```bash
+# Add a new profile
+npm run repomix add frontend "src/components/**,src/pages/**" "**/*.test.js"
+
+# Delete a profile
+npm run repomix delete old-profile
+```
+
+### Prompt Compilation
+
+Compile prompt templates with file content inclusion:
+
+```bash
+# Compile a specific prompt
+npm run compile-prompt _docs/prompts/example.md
+
+# Compile with variable substitution
+npm run compile-prompt _docs/prompts/my-template.md --var.PROJECT_NAME "My Project"
+```
+
+In your templates, you can include file contents using the `{{ path/to/file }}` syntax:
+
+```markdown
+# My API Documentation
+
+## API Routes
+
+```js
+{{ src/routes/index.js }}
+```
+
+### Sequential Command Runner
+
+Run predefined sequences of commands:
+
+```bash
+# Run the default sequence
 npm run next-gen
+
+# Run a specific sequence
+npm run next-gen another_sequence
+
+# List available sequences
+npm run next-gen list
 ```
 
-This will execute the commands defined in your configuration file.
+Sequences are defined in `jaw-tools.config.js` and can include multiple generation steps.
 
-### Configuration
+### Health Checks
 
-You can configure the commands to run in your `jaw-tools.config.js` file:
+Verify your jaw-tools setup:
 
-```javascript
-module.exports = {
-  // ...other config...
-  nextGen: {
-    commands: [
-      ['repomix-profile', ['run', 'full-codebase']],
-      ['repomix-profile', ['run', 'docs-only']],
-      ['compile-prompt', ['_docs/prompts/example.md']]
-    ]
-  }
-};
+```bash
+npm run jaw-doctor
 ```
 
-**Tips:**
-- Use compressed Repomix profiles for large codebases or LLM token limits.
-- Use feature-specific Repomix profiles for focused reviews.
-- Ensure file paths in prompt templates are correct relative to the project root. 
+This checks if all required configuration, directories, and dependencies are properly set up.
+
+## Configuration
+
+The jaw-tools configuration is stored in `jaw-tools.config.js` in your project root. You can edit this file to customize:
+
+- Directory paths for documentation and profiles
+- Default repomix profiles for codebase snapshots
+- Template variables for prompt compilation
+- Command sequences for next-gen
+- Scaffolding options
+
+## Documentation Templates
+
+Standard documentation templates are available in the `_docs/project-docs/templates/` directory. These include:
+
+- Mini-PRD templates for feature planning
+- Architecture Decision Records (ADRs)
+- Service documentation
+- North Star documents
+- System principles
+
+You can copy and adapt these templates for your project documentation.
+
+## Getting Help
+
+Run the help command to see all available options:
+
+```bash
+npx jaw-tools help
+```
+
+For more detailed information, visit the jaw-tools GitHub repository: [https://github.com/thejoeyweber/jaw-tools](https://github.com/thejoeyweber/jaw-tools) 

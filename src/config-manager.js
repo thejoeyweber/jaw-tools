@@ -28,10 +28,19 @@ const defaultConfig = {
     variables: {},
     useNumberedOutputs: true
   },
-  nextGen: {
-    commands: [
-      ['repomix-profile', ['run', 'full-codebase']]
-    ]
+  workflow: {
+    sequences: {
+      'default': [
+        ['repomix-profile', ['run', 'full-codebase']]
+      ]
+    },
+    defaultSequence: 'default'
+  },
+  projectScaffolding: {
+    scaffoldTargetRootDir: '.',
+    userGuide: {
+      destinationFileName: 'jaw-tools-guide.md'
+    }
   }
 };
 

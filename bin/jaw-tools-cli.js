@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 
-const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+
+// Import utilities and config manager
+const configManager = require('../src/config-manager');
+const { ensureDir } = require('../src/utils');
 
 // Normalize path for cross-platform compatibility
 function normalizePath(...pathSegments) {
@@ -31,6 +34,15 @@ switch (command) {
     runSetup();
     break;
     
+  case 'scaffold':
+    runScaffold(args.includes('--force'));
+    break;
+    
+  case 'doctor':
+  case 'status':
+    runDoctor();
+    break;
+    
   case 'repomix':
   case 'profile':
   case 'r':
@@ -43,10 +55,10 @@ switch (command) {
     runCompilePrompt(args);
     break;
     
-  case 'next-gen':
-  case 'seq':
-  case 'n':
-    runNextGen();
+  case 'workflow':
+  case 'wf':
+  case 'w':
+    runWorkflow(args);
     break;
     
   case 'mini-prd':
@@ -74,32 +86,82 @@ function runSetup() {
       process.exit(1);
     }
     
-    const setup = spawn('node', [setupPath], { stdio: 'inherit' });
-    setup.on('error', err => {
+    const setup = require(setupPath);
+    setup().then(result => {
+      if (!result.success) {
+        process.exit(1);
+      }
+      process.exit(0);
+    }).catch(err => {
       console.error(`❌ Error running setup: ${err.message}`);
       process.exit(1);
     });
-    setup.on('close', code => process.exit(code || 0));
   } catch (err) {
     console.error(`❌ Failed to run setup: ${err.message}`);
     process.exit(1);
   }
 }
 
+function runScaffold(force = false) {
+  try {
+    // Load config
+    const config = loadConfig();
+    
+    // Get scaffold module
+    const scaffold = require('../lib/scaffold');
+    
+    // Run scaffolding
+    scaffold.scaffold(config, force)
+      .then(result => {
+        if (!result.success) {
+          console.error(`❌ Scaffolding failed: ${result.error}`);
+          process.exit(1);
+        }
+        process.exit(0);
+      })
+      .catch(err => {
+        console.error(`❌ Error during scaffolding: ${err.message}`);
+        process.exit(1);
+      });
+  } catch (err) {
+    console.error(`❌ Failed to run scaffolding: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+function runDoctor() {
+  try {
+    // Get doctor module
+    const doctor = require('../lib/doctor');
+    
+    // Run diagnostics
+    doctor.runDiagnostics()
+      .then(results => {
+        // Exit with code 1 if overall health check failed
+        process.exit(results.overall ? 0 : 1);
+      })
+      .catch(err => {
+        console.error(`❌ Error running diagnostics: ${err.message}`);
+        process.exit(1);
+      });
+  } catch (err) {
+    console.error(`❌ Failed to run doctor: ${err.message}`);
+    process.exit(1);
+  }
+}
+
 function runRepomixCommand(args) {
   try {
-    // Check if config exists
-    let config;
-    try {
-      config = require(configPath);
-    } catch (err) {
-      console.error(`❌ Error loading config: ${err.message}`);
-      console.log('⚠️ Using default config instead.');
-      config = { directories: { repomixProfiles: '.repomix-profiles' } };
-    }
+    // Load config
+    const config = loadConfig();
     
-    // Check if profiles-manager.js exists in the project
+    // Check if .repomix-profiles directory exists
     const repoProfilesDir = normalizePath(projectRoot, config.directories?.repomixProfiles || '.repomix-profiles');
+    
+    // Ensure the directory exists
+    ensureDir(repoProfilesDir);
+    
+    // Check if profiles-manager.js exists in the project's .repomix-profiles directory
     const profileManagerPath = normalizePath(repoProfilesDir, 'profiles-manager.js');
     
     // If it doesn't exist, copy our version
@@ -111,9 +173,6 @@ function runRepomixCommand(args) {
       }
       
       try {
-        if (!fs.existsSync(repoProfilesDir)) {
-          fs.mkdirSync(repoProfilesDir, { recursive: true });
-        }
         fs.copyFileSync(sourceProfileManager, profileManagerPath);
         console.log(`✅ Created profiles-manager.js in ${repoProfilesDir}`);
       } catch (err) {
@@ -122,17 +181,97 @@ function runRepomixCommand(args) {
       }
     }
     
+    // Run the profiles-manager.js script with the provided arguments
+    const { spawn } = require('child_process');
     const profileMgr = spawn('node', [profileManagerPath, ...args], { 
       stdio: 'inherit', 
       shell: true 
     });
+    
     profileMgr.on('error', err => {
       console.error(`❌ Error running profile manager: ${err.message}`);
       process.exit(1);
     });
+    
     profileMgr.on('close', code => process.exit(code || 0));
   } catch (err) {
     console.error(`❌ Error in repomix command: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+function runCompilePrompt(args) {
+  try {
+    // Load config
+    const config = loadConfig();
+    
+    // Load compile-prompt module
+    const compilePromptPath = normalizePath(__dirname, '..', 'lib', 'compile-prompt.js');
+    const compilePrompt = require(compilePromptPath);
+    
+    // Parse arguments
+    if (args.length === 0) {
+      console.error('❌ Error: No prompt file specified. Usage: jaw-tools compile <prompt-file>');
+      process.exit(1);
+    }
+    
+    const promptFile = args[0];
+    const options = {};
+    
+    // Extract options
+    for (let i = 1; i < args.length; i++) {
+      if (args[i].startsWith('--')) {
+        const optionName = args[i].substring(2);
+        const optionValue = args[i+1] && !args[i+1].startsWith('--') ? args[i+1] : true;
+        options[optionName] = optionValue;
+        if (optionValue !== true) i++; // Skip the value in the next iteration
+      }
+    }
+    
+    // Compile the prompt using the function with proper parameters
+    const result = compilePrompt.compile(promptFile, options, config);
+    
+    // Handle the result
+    if (!result || !result.success) {
+      console.error(`❌ Compilation failed: ${result?.error || 'Unknown error'}`);
+      process.exit(1);
+    }
+    
+    process.exit(0);
+  } catch (err) {
+    console.error(`❌ Error in compile command: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+function runWorkflow(args) {
+  try {
+    // Load config
+    const config = loadConfig();
+    
+    // Get workflow module
+    const workflow = require('../lib/workflow');
+    
+    // Determine the subcommand
+    const subCommand = args[0];
+    
+    if (subCommand === 'list') {
+      // List available sequences
+      workflow.listSequences(config);
+    } else {
+      // Run sequence (either specified sequence or default)
+      const sequenceName = (subCommand && !subCommand.startsWith('--')) ? subCommand : null;
+      workflow.runSequence(config, sequenceName)
+        .then(success => {
+          process.exit(success ? 0 : 1);
+        })
+        .catch(err => {
+          console.error(`Error running sequence: ${err.message}`);
+          process.exit(1);
+        });
+    }
+  } catch (err) {
+    console.error(`❌ Error in workflow command: ${err.message}`);
     process.exit(1);
   }
 }
@@ -254,164 +393,33 @@ function runMiniPrdCommand(args) {
         }
         break;
         
-      case 'sync':
-        try {
-          const result = manager.syncFromMarkdown();
-          console.log(`✅ Synced Mini-PRDs from markdown files`);
-          console.log(`📊 Created: ${result.created}, Updated: ${result.updated}`);
-        } catch (err) {
-          console.error(`❌ Error syncing Mini-PRDs: ${err.message}`);
-          process.exit(1);
-        }
-        break;
-        
-      case 'status':
-        // Check for PRD ID
-        const statusId = subArgs[0];
-        if (!statusId) {
-          console.error('❌ Error: Mini-PRD ID is required');
-          process.exit(1);
-        }
-        
-        try {
-          const status = manager.checkFileStatus(statusId);
-          const prd = manager.getPrd(statusId);
-          
-          console.log(`\nMini-PRD ${statusId}: ${prd.description}`);
-          console.log(`--------------------------`);
-          console.log(`Matching Files: ${status.existingFiles.length + status.plannedFiles.length} total (${status.existingFiles.length} existing, ${status.plannedFiles.length} planned)\n`);
-          
-          if (status.existingFiles.length > 0) {
-            console.log(`Existing Files:`);
-            status.existingFiles.forEach(file => {
-              console.log(`✓ ${file}`);
-            });
-            console.log('');
-          }
-          
-          if (status.plannedFiles.length > 0) {
-            console.log(`Planned Files:`);
-            status.plannedFiles.forEach(({ file, exists }) => {
-              console.log(`${exists ? '✓' : '✗'} ${file} - ${exists ? 'CREATED' : 'NOT CREATED'}`);
-            });
-          }
-        } catch (err) {
-          console.error(`❌ Error checking file status: ${err.message}`);
-          process.exit(1);
-        }
-        break;
-        
-      case 'history':
-        // Check for PRD ID
-        const historyId = subArgs[0];
-        if (!historyId) {
-          console.error('❌ Error: Mini-PRD ID is required');
-          process.exit(1);
-        }
-        
-        try {
-          const history = manager.getHistory(historyId);
-          const prd = manager.getPrd(historyId);
-          
-          console.log(`\nMini-PRD ${historyId}: ${prd.description}`);
-          console.log(`--------------------------`);
-          console.log(`Version History: ${history.length} versions\n`);
-          
-          history.forEach((version, i) => {
-            const date = new Date(version.timestamp).toLocaleString();
-            console.log(`[${i}] ${date}${version.isCurrent ? ' (current)' : ''}`);
-            console.log(`  Includes: ${version.includes.join(', ')}`);
-            console.log(`  Excludes: ${version.excludes.join(', ') || 'none'}`);
-            console.log(`  Planned Files: ${version.plannedFiles.length} files`);
-            console.log('');
-          });
-        } catch (err) {
-          console.error(`❌ Error retrieving history: ${err.message}`);
-          process.exit(1);
-        }
-        break;
-        
       case 'list':
-      default:
         try {
-          const prds = manager.getAllPrds();
-          
+          const prds = manager.listPrds();
           if (prds.length === 0) {
-            console.log('No Mini-PRDs found. Create one with:');
-            console.log('  npx jaw-tools mini-prd create "Feature Name"');
-            break;
+            console.log('No Mini-PRDs found.');
+          } else {
+            console.log('📋 Mini-PRDs:');
+            prds.forEach(prd => {
+              console.log(`  - ${prd.id}: ${prd.name} (${prd.status})`);
+            });
           }
-          
-          console.log('\n📋 Mini-PRDs:');
-          console.log('=============');
-          
-          prds.forEach(prd => {
-            console.log(`\n[${prd.id}] ${prd.description}`);
-            console.log(`  - Created: ${new Date(prd.createdAt).toLocaleDateString()}`);
-            console.log(`  - Files: ${prd.includes.join(', ')}`);
-            console.log(`  - Planned: ${prd.plannedFiles.length} files`);
-          });
-          
-          console.log('\nCommands:');
-          console.log('  npx jaw-tools mini-prd create "Feature Name"  - Create a new Mini-PRD');
-          console.log('  npx jaw-tools mini-prd update <id> --add "<patterns>"  - Update a Mini-PRD');
-          console.log('  npx jaw-tools mini-prd snapshot <id>  - Generate a snapshot');
-          console.log('  npx jaw-tools mini-prd status <id>  - Check file status');
-          console.log('  npx jaw-tools mini-prd history <id>  - View change history');
         } catch (err) {
           console.error(`❌ Error listing Mini-PRDs: ${err.message}`);
           process.exit(1);
         }
         break;
+        
+      default:
+        console.log('🔍 Mini-PRD Commands:');
+        console.log('  jaw-tools mini-prd create <name> [--options]');
+        console.log('  jaw-tools mini-prd update <id> [--options]');
+        console.log('  jaw-tools mini-prd snapshot <id>');
+        console.log('  jaw-tools mini-prd list');
+        break;
     }
   } catch (err) {
     console.error(`❌ Error in mini-prd command: ${err.message}`);
-    process.exit(1);
-  }
-}
-
-function runCompilePrompt(args) {
-  try {
-    const compilePromptPath = normalizePath(__dirname, '..', 'lib', 'compile-prompt.js');
-    if (!fs.existsSync(compilePromptPath)) {
-      console.error(`❌ Compile prompt script not found at: ${compilePromptPath}`);
-      process.exit(1);
-    }
-    
-    const compiler = spawn('node', [compilePromptPath, ...args], { 
-      stdio: 'inherit', 
-      shell: true 
-    });
-    compiler.on('error', err => {
-      console.error(`❌ Error running compile prompt: ${err.message}`);
-      process.exit(1);
-    });
-    compiler.on('close', code => process.exit(code || 0));
-  } catch (err) {
-    console.error(`❌ Error in compile prompt command: ${err.message}`);
-    process.exit(1);
-  }
-}
-
-function runNextGen() {
-  try {
-    const nextGenPath = normalizePath(__dirname, '..', 'lib', 'next-gen.js');
-    if (!fs.existsSync(nextGenPath)) {
-      console.error(`❌ Next-gen script not found at: ${nextGenPath}`);
-      process.exit(1);
-    }
-    
-    const nextGen = spawn('node', [nextGenPath], { 
-      stdio: 'inherit', 
-      shell: true 
-    });
-    nextGen.on('error', err => {
-      console.error(`❌ Error running next-gen: ${err.message}`);
-      process.exit(1);
-    });
-    nextGen.on('close', code => process.exit(code || 0));
-  } catch (err) {
-    console.error(`❌ Error in next-gen command: ${err.message}`);
     process.exit(1);
   }
 }
@@ -422,8 +430,8 @@ function showVersion() {
     const packageJson = require(packageJsonPath);
     console.log(`jaw-tools v${packageJson.version}`);
   } catch (err) {
-    console.error(`❌ Error showing version: ${err.message}`);
-    console.log('jaw-tools v1.0.0'); // Fallback version
+    console.error(`❌ Error getting version: ${err.message}`);
+    console.log('jaw-tools (version unknown)');
   }
 }
 
@@ -431,28 +439,50 @@ function showHelp() {
   console.log(`
 🛠️ jaw-tools - AI Development Utilities
 
-Usage:
-  jaw-tools <command> [options]
+Usage: jaw-tools <command> [arguments]
 
 Commands:
-  init, setup               Setup jaw-tools in your project
-  repomix, profile, r       Manage and run Repomix profiles
-  compile, c <template>     Compile a prompt template
-  next-gen, seq, n          Run the sequence of commands
-  mini-prd, mprd            Manage mini-PRDs for feature slices
-  version, v                Show version
-  help, h                   Show this help message
-
-Examples:
-  jaw-tools setup
-  jaw-tools repomix list
-  jaw-tools repomix run full-codebase
-  jaw-tools compile _docs/prompts/example.md
-  jaw-tools next-gen
-  jaw-tools mini-prd create "Feature Name"
-  jaw-tools mini-prd snapshot 001
-
-Documentation:
-  https://github.com/thejoeyweber/jaw-tools
+  setup                   Initialize and configure jaw-tools in your project
+  scaffold [--force]      Scaffold standard documentation and files to your project
+  doctor                  Check jaw-tools setup status
+  
+  repomix <subcommand>    Manage and run repomix profiles
+    list                  Show available profiles
+    run <profile>         Generate a snapshot with the specified profile
+    add <profile>         Add a new profile
+    delete <profile>      Delete a profile
+  
+  compile <prompt-file>   Compile a prompt template
+  
+  workflow [sequence]     Run command sequences
+    list                  Show available command sequences
+    <sequence-name>       Run the specified sequence
+    
+  mini-prd <subcommand>   Manage Mini-PRDs
+    create <name>         Create a new Mini-PRD
+    update <id>           Update an existing Mini-PRD
+    snapshot <id>         Generate a snapshot for a Mini-PRD
+    list                  Show all Mini-PRDs
+  
+  version                 Show jaw-tools version
+  help                    Show this help
+  
+Aliases:
+  r = repomix
+  c = compile
+  w = workflow
+  mprd = mini-prd
+  v = version
+  h = help
 `);
+}
+
+// Utility function to load the config file
+function loadConfig() {
+  try {
+    return configManager.getConfig();
+  } catch (err) {
+    console.error(`❌ Error loading config: ${err.message}`);
+    return {};
+  }
 } 

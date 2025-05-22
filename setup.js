@@ -1,5 +1,17 @@
 #!/usr/bin/env node
 
+/**
+ * DEBUG INFO - This will help diagnose postinstall issues
+ */
+console.log('\n******** JAW-TOOLS SETUP SCRIPT STARTING ********');
+console.log('Current directory:', process.cwd());
+console.log('Script path:', __filename);
+console.log('Environment variables:');
+console.log('- npm_lifecycle_event:', process.env.npm_lifecycle_event);
+console.log('- NODE_ENV:', process.env.NODE_ENV);
+console.log('- Command line args:', process.argv);
+console.log('*************************************************\n');
+
 // Try to use fs-extra but fall back to native fs
 let fs;
 try {
@@ -52,22 +64,55 @@ try {
 
 const path = require('path');
 const readline = require('readline');
+const { spawn } = require('child_process');
 
-// Skip setup if this is not the root installation
-if (process.env.npm_config_global || process.env.npm_config_ignore_scripts) {
-  process.exit(0);
+// Import utility functions explicitly since we're running at package install time
+let ensureDir, askQuestion, checkCommandAvailability;
+try {
+  const utils = require('./src/utils');
+  ensureDir = utils.ensureDir;
+  askQuestion = utils.askQuestion;
+  checkCommandAvailability = utils.checkCommandAvailability;
+} catch (err) {
+  // Define functions inline if module not found during installation
+  ensureDir = (dir) => {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  };
+  
+  askQuestion = (question, rl) => {
+    const interface = rl || readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+    return new Promise(resolve => {
+      interface.question(question, answer => {
+        if (!rl) interface.close();
+        resolve(answer);
+      });
+    });
+  };
+  
+  checkCommandAvailability = (command) => {
+    const { exec } = require('child_process');
+    return new Promise(resolve => {
+      exec(`${command} --version`, { shell: true }, (error) => {
+        resolve(!error);
+      });
+    });
+  };
 }
 
-// Detect if running as part of npm install (postinstall script)
-const isNpmInstall = !!process.env.npm_lifecycle_event && process.env.npm_lifecycle_event === 'postinstall';
-
-// Define a timeout for preventing installation hang (5 minutes)
-const SETUP_TIMEOUT = 5 * 60 * 1000;
-let setupTimeoutId;
+// Determine if this is being run as a postinstall script
+// Detect various possible install scenarios
+const isPostInstall = process.env.npm_lifecycle_event === 'postinstall' || 
+                      process.env.npm_config_argv?.includes('install') ||
+                      process.argv.includes('--postinstall');
 
 // Create readline interface only for interactive setup
 let rl;
-if (!isNpmInstall) {
+if (!isPostInstall) {
   rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout
@@ -80,7 +125,8 @@ const defaultConfig = {
     repomixProfiles: '.repomix-profiles',
     docs: '_docs',
     prompts: '_docs/prompts',
-    compiledPrompts: '_docs/prompts-compiled'
+    compiledPrompts: '_docs/prompts-compiled',
+    miniPrdTemplatePath: '_docs/project-docs/templates/mini-prd-template.md'
   },
   repomix: {
     defaultProfiles: {
@@ -103,409 +149,359 @@ const defaultConfig = {
     variables: {},
     useNumberedOutputs: true
   },
-  nextGen: {
-    commands: [
-      ['repomix-profile', ['run', 'full-codebase']],
-      ['repomix-profile', ['run', 'docs-only']],
-      ['compile-prompt', ['_docs/prompts/example.md']]
-    ]
+  workflow: {
+    sequences: {
+      'default': [
+        ['repomix-profile', ['run', 'full-codebase']],
+        ['repomix-profile', ['run', 'docs-only']],
+        ['compile-prompt', ['_docs/prompts/example.md']]
+      ]
+    },
+    defaultSequence: 'default'
+  },
+  projectScaffolding: {
+    scaffoldTargetRootDir: '.',
+    userGuide: {
+      destinationFileName: 'jaw-tools-guide.md'
+    }
   }
 };
 
-async function askQuestion(query) {
-  // If running as part of npm install, return default value (empty string)
-  if (isNpmInstall) {
-    return '';
+/**
+ * Main setup function
+ */
+async function setup() {
+  const toolRoot = path.dirname(require.resolve('./package.json'));
+  const projectRoot = process.cwd();
+  let config = { ...defaultConfig };
+  
+  // Check if running as part of npm install (postinstall)
+  if (isPostInstall) {
+    console.log('\n🛠️ Performing minimal jaw-tools setup (postinstall)...');
+    
+    // Use setTimeout to ensure this message appears
+    setTimeout(() => {
+      console.log('\n✨ jaw-tools is being installed...');
+    }, 100);
+    
+    return await handlePostInstall(config, projectRoot, toolRoot);
+  } else {
+    console.log('🛠️ Setting up jaw-tools in your project...');
+    return await handleManualSetup(config, projectRoot, toolRoot);
   }
-  return new Promise(resolve => rl.question(query, answer => resolve(answer)));
 }
 
-async function setup() {
-  console.log('🛠️ Setting up jaw-tools in your project...');
-  
-  // Start timeout to prevent installation hang
-  if (isNpmInstall) {
-    setupTimeoutId = setTimeout(() => {
-      console.error('⚠️ Setup is taking too long. Exiting to prevent installation hang.');
-      process.exit(0); // Exit with success code to avoid npm install failure
-    }, SETUP_TIMEOUT);
-  }
-  
+/**
+ * Handle minimal setup during postinstall
+ */
+async function handlePostInstall(config, projectRoot, toolRoot) {
   try {
-    // Use __dirname instead of process.cwd() for more reliable path resolution
-    const toolRoot = path.dirname(__dirname);
-    const projectRoot = process.cwd();
-    let config = { ...defaultConfig };
+    // Add exit event listener for reliable completion message
+    process.on('exit', () => {
+      const installCompleteMsg = '\n\n✅ JAW-TOOLS SETUP COMPLETE! For full project scaffolding, dependency checks, and guided configuration, please run: npx jaw-tools setup\n';
+      console.log(installCompleteMsg);
+    });
+    
+    // IMPORTANT: When installed as a dependency, we need to handle
+    // creating files in the parent project directory
+    let targetRoot = projectRoot;
+    
+    // Check if we're in node_modules
+    if (projectRoot.includes('node_modules')) {
+      // Try to get parent project directory
+      targetRoot = projectRoot.split('node_modules')[0].replace(/[\\/]$/, '');
+      console.log(`Detected installation as dependency. Target project root: ${targetRoot}`);
+    }
+    
+    // Check if config file already exists
+    const configPath = path.join(targetRoot, 'jaw-tools.config.js');
+    if (!fs.existsSync(configPath)) {
+      // Copy template config file
+      const templateConfigPath = path.join(toolRoot, 'templates', 'jaw-tools.config.js');
+      if (fs.existsSync(templateConfigPath)) {
+        try {
+          fs.copyFileSync(templateConfigPath, configPath);
+          console.log(`✅ Created jaw-tools.config.js in ${targetRoot}`);
+        } catch (err) {
+          console.error(`⚠️ Error creating config file: ${err.message}`);
+        }
+      } else {
+        // Fallback to creating config from default if template not found
+        const configContent = `// jaw-tools configuration
+module.exports = ${JSON.stringify(config, null, 2)};
+`;
+        try {
+          fs.writeFileSync(configPath, configContent);
+          console.log(`✅ Created jaw-tools.config.js from defaults in ${targetRoot}`);
+        } catch (err) {
+          console.error(`⚠️ Error creating config file: ${err.message}`);
+        }
+      }
+    } else {
+      try {
+        // Use existing config
+        config = require(configPath);
+        console.log(`✅ Using existing config file: ${configPath}`);
+      } catch (err) {
+        console.error(`⚠️ Error loading existing config: ${err.message}`);
+      }
+    }
+
+    // Create essential directories
+    const repoProfilesDir = path.join(targetRoot, config.directories?.repomixProfiles || '.repomix-profiles');
+    const docsDir = path.join(targetRoot, config.directories?.docs || '_docs');
+    const promptsDir = path.join(targetRoot, config.directories?.prompts || '_docs/prompts');
+    const compiledPromptsDir = path.join(targetRoot, config.directories?.compiledPrompts || '_docs/prompts-compiled');
+
+    try {
+      ensureDir(repoProfilesDir);
+      ensureDir(docsDir);
+      ensureDir(promptsDir);
+      ensureDir(compiledPromptsDir);
+      console.log(`✅ Essential directories created in ${targetRoot}`);
+    } catch (err) {
+      console.error(`⚠️ Error creating directories: ${err.message}`);
+    }
+    
+    // Create example prompt if it doesn't exist
+    const examplePromptPath = path.join(promptsDir, 'example.md');
+    if (!fs.existsSync(examplePromptPath)) {
+      const templatePromptPath = path.join(toolRoot, 'templates', 'scaffold_root', '_docs', 'prompts', 'example.md');
+      if (fs.existsSync(templatePromptPath)) {
+        try {
+          fs.copyFileSync(templatePromptPath, examplePromptPath);
+          console.log(`✅ Created example prompt in ${examplePromptPath}`);
+        } catch (err) {
+          console.error(`⚠️ Error creating example prompt: ${err.message}`);
+        }
+      }
+    }
+    
+    // We've moved the completion message to the process.on('exit') handler
+    // No need for the multiple output methods here anymore
+    
+    return { success: true };
+  } catch (err) {
+    console.error(`❌ Error during postinstall setup: ${err.message}`);
+    // Still exit with success to avoid stopping npm install
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Handle interactive setup when run manually
+ */
+async function handleManualSetup(config, projectRoot, toolRoot) {
+  try {
+    // Add exit event listener for reliable completion message
+    process.on('exit', () => {
+      const setupCompleteMsg = '\n\n✅ JAW-TOOLS SETUP COMPLETE! Run "npx jaw-tools help" for available commands.\n';
+      console.log(setupCompleteMsg);
+    });
     
     // Check if config file already exists
     const configPath = path.join(projectRoot, 'jaw-tools.config.js');
     if (fs.existsSync(configPath)) {
-      console.log('⚠️ jaw-tools.config.js already exists. Skipping configuration setup.');
+      console.log('⚠️ jaw-tools.config.js already exists.');
       
-      // If running as part of npm install, use existing config without prompting
-      if (isNpmInstall) {
-        console.log('Using existing configuration (running as part of npm install)');
-        try {
-          // Use try-catch for all file operations during non-interactive setup
-          createDirectories(config, projectRoot, toolRoot);
-          updatePackageJson(projectRoot);
-          console.log('\n🚀 jaw-tools setup complete with existing configuration!');
-          if (rl) rl.close();
-          clearTimeout(setupTimeoutId);
-          return;
-        } catch (err) {
-          console.error('❌ Error during setup:', err.message);
-          if (rl) rl.close();
-          clearTimeout(setupTimeoutId);
-          // Exit with 0 during npm install to not block installation
-          process.exit(isNpmInstall ? 0 : 1);
-        }
-      }
-      
-      const useExisting = await askQuestion('Would you like to continue with the existing configuration? (Y/n): ');
+      const useExisting = await askQuestion('Would you like to continue with the existing configuration? (Y/n): ', rl);
       if (useExisting.toLowerCase() !== 'n') {
-        createDirectories(config, projectRoot, toolRoot);
-        updatePackageJson(projectRoot);
-        console.log('\n🚀 jaw-tools setup complete with existing configuration!');
-        if (rl) rl.close();
-        clearTimeout(setupTimeoutId);
-        return;
-      }
-    }
-    
-    // For non-interactive postinstall, just use defaults
-    if (isNpmInstall) {
-      console.log('Using default configuration (non-interactive installation)');
-      const configContent = `// jaw-tools configuration
+        try {
+          config = require(configPath);
+        } catch (err) {
+          console.error(`❌ Error loading existing config: ${err.message}`);
+          console.log('Using default configuration instead.');
+        }
+      } else {
+        // Ask for directory paths
+        console.log('\n📁 Directory Configuration:');
+        config.directories.docs = await askQuestion(`Docs directory [${config.directories.docs}]: `, rl) || config.directories.docs;
+        config.directories.prompts = await askQuestion(`Prompts directory [${config.directories.prompts}]: `, rl) || config.directories.prompts;
+        config.directories.compiledPrompts = await askQuestion(`Compiled prompts directory [${config.directories.compiledPrompts}]: `, rl) || config.directories.compiledPrompts;
+        
+        // Create the configuration file
+        const configContent = `// jaw-tools configuration
 module.exports = ${JSON.stringify(config, null, 2)};
 `;
-      try {
         fs.writeFileSync(configPath, configContent);
         console.log('✅ Created jaw-tools.config.js');
-        createDirectories(config, projectRoot, toolRoot);
-        updatePackageJson(projectRoot);
-        createSamplePrompt(config, projectRoot);
-        console.log('\n🚀 jaw-tools setup complete!');
-        clearTimeout(setupTimeoutId);
-        process.exit(0);
-      } catch (err) {
-        console.error('❌ Error during setup:', err.message);
-        clearTimeout(setupTimeoutId);
-        process.exit(0); // Still exit with 0 during npm install
       }
-    }
-    
-    // Ask for directory paths (for interactive sessions only)
-    console.log('\n📁 Directory Configuration:');
-    config.directories.docs = await askQuestion(`Docs directory [${config.directories.docs}]: `) || config.directories.docs;
-    config.directories.prompts = await askQuestion(`Prompts directory [${config.directories.prompts}]: `) || config.directories.prompts;
-    config.directories.compiledPrompts = await askQuestion(`Compiled prompts directory [${config.directories.compiledPrompts}]: `) || config.directories.compiledPrompts;
-    
-    // Create the configuration file
-    const configContent = `// jaw-tools configuration
+    } else {
+      // Copy template config file
+      const templateConfigPath = path.join(toolRoot, 'templates', 'jaw-tools.config.js');
+      if (fs.existsSync(templateConfigPath)) {
+        fs.copyFileSync(templateConfigPath, configPath);
+        console.log('✅ Created jaw-tools.config.js from template');
+      } else {
+        // Fallback to creating config from default if template not found
+        const configContent = `// jaw-tools configuration
 module.exports = ${JSON.stringify(config, null, 2)};
 `;
+        fs.writeFileSync(configPath, configContent);
+        console.log('✅ Created jaw-tools.config.js from defaults');
+      }
+    }
+    
+    // Create essential directories
+    const repoProfilesDir = path.join(projectRoot, config.directories?.repomixProfiles || '.repomix-profiles');
+    const docsDir = path.join(projectRoot, config.directories?.docs || '_docs');
+    const promptsDir = path.join(projectRoot, config.directories?.prompts || '_docs/prompts');
+    const compiledPromptsDir = path.join(projectRoot, config.directories?.compiledPrompts || '_docs/prompts-compiled');
 
-    fs.writeFileSync(configPath, configContent);
-    console.log('✅ Created jaw-tools.config.js');
+    console.log('\n📂 Creating directories...');
+    ensureDir(repoProfilesDir);
+    ensureDir(docsDir);
+    ensureDir(promptsDir);
+    ensureDir(compiledPromptsDir);
+    console.log('✅ Directory structure created');
     
-    createDirectories(config, projectRoot, toolRoot);
-    updatePackageJson(projectRoot);
-    createSamplePrompt(config, projectRoot);
+    // Check for repomix
+    console.log('\n🔍 Checking for repomix...');
+    const hasRepomix = await checkCommandAvailability('npx repomix --version');
+    if (!hasRepomix) {
+      const packageJson = require('./package.json');
+      const repomixVersion = packageJson.peerDependencies?.repomix || '>=0.3.0';
+      console.warn(`⚠️ repomix not found. This tool works best with repomix ${repomixVersion}`);
+      
+      const shouldInstall = await askQuestion('Would you like to install repomix now? (Y/n): ', rl);
+      if (shouldInstall.toLowerCase() !== 'n') {
+        // Try to update package.json
+        await updatePackageJson(projectRoot);
+        
+        // Install repomix
+        console.log('\n📦 Installing repomix...');
+        
+        const installProcess = spawn('npm', ['install', `repomix@${repomixVersion}`], {
+          stdio: 'inherit',
+          shell: true
+        });
+        
+        await new Promise((resolve, reject) => {
+          installProcess.on('close', code => {
+            if (code === 0) {
+              console.log('✅ repomix installed successfully');
+              resolve();
+            } else {
+              console.error('❌ Failed to install repomix. You may need to install it manually.');
+              resolve(); // Resolve anyway to continue setup
+            }
+          });
+          
+          installProcess.on('error', err => {
+            console.error(`❌ Error installing repomix: ${err.message}`);
+            resolve(); // Resolve anyway to continue setup
+          });
+        });
+      }
+    } else {
+      console.log('✅ repomix is already installed');
+    }
     
-    console.log('\n🚀 jaw-tools setup complete!');
-    console.log('\nRun these commands to get started:');
-    console.log('  npm run repomix list     - List available profiles');
-    console.log('  npm run repomix run full-codebase - Generate a codebase snapshot');
-    console.log('  npm run compile-prompt _docs/prompts/example.md - Compile a prompt');
-    console.log('  npm run next-gen         - Run all configured commands in sequence');
+    // Create sample prompt
+    await createSamplePrompt(config, projectRoot);
     
-  } catch (err) {
-    console.error('❌ Setup failed:', err);
-    process.exit(isNpmInstall ? 0 : 1); // Exit with success during npm install
-  } finally {
+    // Initialize repomix profiles
+    const profilesDir = path.join(projectRoot, config.directories.repomixProfiles);
+    const profilesFile = path.join(profilesDir, 'profiles.json');
+    
+    if (!fs.existsSync(profilesFile) && config.repomix && config.repomix.defaultProfiles) {
+      console.log('\n📝 Creating default repomix profiles...');
+      fs.writeJsonSync(profilesFile, config.repomix.defaultProfiles, { spaces: 2 });
+      console.log(`✅ Created default profiles in ${path.relative(projectRoot, profilesFile)}`);
+    }
+    
+    // We've moved the completion message to the process.on('exit') handler
+    
     if (rl) rl.close();
-    if (setupTimeoutId) clearTimeout(setupTimeoutId);
+    return { success: true };
+  } catch (err) {
+    console.error(`\n❌ Error during setup: ${err.message}`);
+    if (rl) rl.close();
+    return { success: false, error: err.message };
   }
 }
-
-function createDirectories(config, projectRoot, toolRoot) {
-  // Create directories
-  console.log('\n📂 Creating directories...');
-  const repoProfilesDir = path.join(projectRoot, config.directories.repomixProfiles);
-  const docsDir = path.join(projectRoot, config.directories.docs);
-  const promptsDir = path.join(projectRoot, config.directories.prompts);
-  const compiledPromptsDir = path.join(projectRoot, config.directories.compiledPrompts);
-  
-  try {
-    fs.ensureDirSync(repoProfilesDir);
-    fs.ensureDirSync(docsDir);
-    fs.ensureDirSync(promptsDir);
-    fs.ensureDirSync(compiledPromptsDir);
-    console.log('✅ Created directory structure');
-    
-    // Copy .repo_ignore file if it doesn't exist
-    // Use toolRoot if available, otherwise fall back to __dirname
-    const repoIgnoreSrc = path.join(toolRoot || __dirname, 'templates', '.repo_ignore');
-    const repoIgnoreDest = path.join(projectRoot, '.repo_ignore');
-    if (fs.existsSync(repoIgnoreSrc) && !fs.existsSync(repoIgnoreDest)) {
-      fs.copySync(repoIgnoreSrc, repoIgnoreDest);
-      console.log('✅ Created .repo_ignore file');
-    } else if (!fs.existsSync(repoIgnoreSrc)) {
-      console.warn(`⚠️ Template file not found: ${repoIgnoreSrc}`);
-    }
-    
-    // Create profiles.json if it doesn't exist
-    const profilesJsonPath = path.join(repoProfilesDir, 'profiles.json');
-    if (!fs.existsSync(profilesJsonPath)) {
-      fs.writeJsonSync(profilesJsonPath, config.repomix.defaultProfiles, { spaces: 2 });
-      console.log('✅ Created profiles.json with default profiles');
-    }
-    
-    // Create a standalone profiles-manager.js that doesn't rely on external dependencies
-    const profilesManagerDest = path.join(repoProfilesDir, 'profiles-manager.js');
-    const profilesManagerContent = `#!/usr/bin/env node
 
 /**
- * Repomix Profile Manager
- * 
- * A tool to manage profiles for generating different views of the codebase
- * for AI analysis using repomix.
+ * Update package.json to include repomix as a dependency
  */
-
-const fs = require('fs');
-const path = require('path');
-const { spawn } = require('child_process');
-const { execSync } = require('child_process');
-
-// Helper function to get token count
-function getTokenCount(file) {
-  try {
-    const stats = fs.statSync(file);
-    const fileSizeInKB = stats.size / 1024;
-    return Math.round(fileSizeInKB * 0.6 * 1024); // Rough estimate: ~0.6 tokens per byte
-  } catch (err) {
-    return "Error getting token count";
-  }
-}
-
-// Constants
-const PROFILES_FILE = path.join(__dirname, 'profiles.json');
-const OUTPUT_DIR = path.join(__dirname, 'outputs');
-
-// Create output directory if it doesn't exist
-if (!fs.existsSync(OUTPUT_DIR)) {
-  fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-}
-
-// Initialize or load profiles
-let profiles = {};
-if (fs.existsSync(PROFILES_FILE)) {
-  try {
-    profiles = JSON.parse(fs.readFileSync(PROFILES_FILE, 'utf8'));
-  } catch (err) {
-    console.error(\`Error reading profiles file: \${err.message}\`);
-    // Create an empty file if it doesn't exist or is invalid
-    fs.writeFileSync(PROFILES_FILE, '{}', 'utf8');
-  }
-}
-
-// Parse command line arguments
-const command = process.argv[2];
-const profileName = process.argv[3];
-
-// List available profiles
-if (command === 'list') {
-  console.log('\\n🔍 Available repomix profiles:');
-  console.log('============================');
+async function updatePackageJson(projectRoot) {
+  const packageJsonPath = path.join(projectRoot, 'package.json');
   
-  if (Object.keys(profiles).length === 0) {
-    console.log('No profiles found. Add a profile with: node profiles-manager.js add <profile-name>');
-    process.exit(0);
+  if (!fs.existsSync(packageJsonPath)) {
+    console.warn('⚠️ No package.json found in project root. Skipping dependency update.');
+    return;
   }
   
-  Object.keys(profiles).forEach(name => {
-    const profile = profiles[name];
-    const outputPath = path.join(OUTPUT_DIR, \`\${name}.xml\`);
-    const tokenCount = fs.existsSync(outputPath) ? \`(~\${getTokenCount(outputPath)} tokens)\` : '';
+  try {
+    const packageJson = fs.readJsonSync(packageJsonPath);
+    const jawToolsPackageJson = require('./package.json');
+    const repomixVersion = jawToolsPackageJson.peerDependencies?.repomix || '>=0.3.0';
     
-    console.log(\`\\n📋 \${name}\`);
-    console.log('  - Include: ' + (profile.include || '(all files)'));
-    console.log('  - Ignore: ' + (profile.ignore || '(none)'));
-    console.log('  - Style: ' + (profile.style || 'xml'));
-    if (profile.compress) console.log('  - Compression: Enabled');
-    if (fs.existsSync(outputPath)) {
-      console.log(\`  - Output: \${outputPath} \${tokenCount}\`);
+    if (!packageJson.dependencies) {
+      packageJson.dependencies = {};
     }
-  });
-  console.log('\\nRun a profile with: node profiles-manager.js run <profile-name>');
-  process.exit(0);
-}
-
-// Run a profile
-if (command === 'run' && profileName) {
-  if (!profiles[profileName]) {
-    console.error(\`❌ Profile "\${profileName}" not found\`);
-    process.exit(1);
-  }
-  
-  const profile = profiles[profileName];
-  const outputFile = \`\${profileName}.xml\`;
-  const outputPath = path.join(OUTPUT_DIR, outputFile);
-  
-  console.log(\`\\n🚀 Running profile: \${profileName}\`);
-  console.log('============================');
-  
-  const args = ['repomix', '--output', outputPath];
-  
-  if (profile.include) args.push('--include', profile.include);
-  if (profile.ignore) args.push('--ignore', profile.ignore);
-  if (profile.style) args.push('--style', profile.style);
-  if (profile.compress) args.push('--compress');
-  
-  console.log(\`\\n📦 Executing: npx \${args.join(' ')}\`);
-  
-  try {
-    execSync(\`npx \${args.join(' ')}\`, { stdio: 'inherit' });
     
-    if (fs.existsSync(outputPath)) {
-      const stats = fs.statSync(outputPath);
-      const fileSizeInKB = Math.round(stats.size / 1024);
-      const tokenCount = getTokenCount(outputPath);
-      
-      console.log(\`\\n✅ Success! Output saved to: \${outputPath}\`);
-      console.log(\`   File size: \${fileSizeInKB} KB\`);
-      console.log(\`   Estimated tokens: ~\${tokenCount}\`);
-    } else {
-      console.error('❌ Failed to generate output file');
-    }
-  } catch (error) {
-    console.error(\`\\n❌ Error running repomix: \${error.message}\`);
-    process.exit(1);
-  }
-  
-  process.exit(0);
-}
-
-// Add a new profile
-if (command === 'add' && profileName) {
-  const include = process.argv[4] || '';
-  const ignore = process.argv[5] || '';
-  const style = process.argv[6] || 'xml';
-  const compress = process.argv.includes('--compress');
-  
-  profiles[profileName] = { include, ignore, style, compress };
-  fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2));
-  
-  console.log(\`\\n✅ Profile "\${profileName}" added/updated\`);
-  console.log(\`Include patterns: \${include || '(all files)'}\`);
-  console.log(\`Ignore patterns: \${ignore || '(none)'}\`);
-  console.log(\`Style: \${style}\`);
-  if (compress) console.log('Compression: Enabled');
-  
-  process.exit(0);
-}
-
-// Delete a profile
-if (command === 'delete' && profileName) {
-  if (!profiles[profileName]) {
-    console.error(\`❌ Profile "\${profileName}" not found\`);
-    process.exit(1);
-  }
-  
-  delete profiles[profileName];
-  fs.writeFileSync(PROFILES_FILE, JSON.stringify(profiles, null, 2));
-  
-  const outputPath = path.join(OUTPUT_DIR, \`\${profileName}.xml\`);
-  if (fs.existsSync(outputPath)) {
-    fs.unlinkSync(outputPath);
-    console.log(\`\\n🗑️ Deleted output file: \${outputPath}\`);
-  }
-  
-  console.log(\`\\n✅ Profile "\${profileName}" deleted\`);
-  process.exit(0);
-}
-
-// Show help if no valid command
-console.log('\\n🔧 Repomix Profile Manager');
-console.log('============================');
-console.log('Usage:');
-console.log('  list                             - List all profiles');
-console.log('  run <profile>                    - Run a specific profile');
-console.log('  add <profile> [include] [ignore] [style] [--compress] - Add/update a profile');
-console.log('  delete <profile>                 - Delete a profile');
-console.log('\\nExamples:');
-console.log('  node profiles-manager.js add full-codebase');
-console.log('  node profiles-manager.js add frontend-only "app/**,components/**" "actions/**,db/**" xml');
-console.log('  node profiles-manager.js add core-compact "actions/db/**,db/schema/**,types/**" "" xml --compress');
-console.log('  node profiles-manager.js run full-codebase');`;
-  
-    fs.writeFileSync(profilesManagerDest, profilesManagerContent);
-    console.log('✅ Created profiles-manager.js');
-  } catch (err) {
-    console.error(`❌ Error creating directories: ${err.message}`);
-    throw err; // Rethrow to be caught by the main setup function
-  }
-}
-
-function updatePackageJson(projectRoot) {
-  // Add scripts to package.json
-  try {
-    const pkgJsonPath = path.join(projectRoot, 'package.json');
-    if (fs.existsSync(pkgJsonPath)) {
-      console.log('\n🔧 Updating package.json...');
-      const pkgJson = fs.readJsonSync(pkgJsonPath);
-      pkgJson.scripts = pkgJson.scripts || {};
-      
-      // Only add scripts if they don't exist
-      if (!pkgJson.scripts['repomix']) {
-        pkgJson.scripts['repomix'] = 'jaw-tools repomix';
-      }
-      if (!pkgJson.scripts['compile-prompt']) {
-        pkgJson.scripts['compile-prompt'] = 'jaw-tools compile';
-      }
-      if (!pkgJson.scripts['next-gen']) {
-        pkgJson.scripts['next-gen'] = 'jaw-tools next-gen';
-      }
-      
-      fs.writeJsonSync(pkgJsonPath, pkgJson, { spaces: 2 });
-      console.log('✅ Added npm scripts to package.json');
+    if (!packageJson.dependencies.repomix) {
+      packageJson.dependencies.repomix = repomixVersion;
+      fs.writeJsonSync(packageJsonPath, packageJson, { spaces: 2 });
+      console.log('✅ Added repomix to package.json dependencies');
     }
   } catch (err) {
-    console.warn('⚠️ Could not update package.json scripts:', err.message);
+    console.error(`❌ Error updating package.json: ${err.message}`);
   }
 }
 
-function createSamplePrompt(config, projectRoot) {
-  // Create a sample prompt
-  const samplePromptDir = path.join(projectRoot, config.directories.prompts);
-  const samplePromptPath = path.join(samplePromptDir, 'example.md');
+/**
+ * Create a sample prompt for the user
+ */
+async function createSamplePrompt(config, projectRoot) {
+  const promptsDir = path.join(projectRoot, config.directories.prompts);
+  const samplePromptPath = path.join(promptsDir, 'example.md');
+  
   if (!fs.existsSync(samplePromptPath)) {
-    const samplePrompt = `# Example Prompt
+    console.log('\n📝 Creating a sample prompt template...');
+    
+    const samplePrompt = `# Example Prompt Template
 
-This is a sample prompt template that demonstrates how to use file includes.
+This is an example prompt template that you can compile with jaw-tools.
+You can include file contents with the {{file-path}} syntax.
 
-## Project Structure
+For example:
 
-\`\`\`
-{{ package.json }}
+## Package.json
+\`\`\`json
+{{package.json}}
 \`\`\`
 
 ## Configuration
-
-\`\`\`js
-{{ jaw-tools.config.js }}
+\`\`\`javascript
+{{jaw-tools.config.js}}
 \`\`\`
 
-You can include any file using the \`{{ path/to/file }}\` syntax.
+You can also use glob patterns:
+\`\`\`javascript
+{{src/**/*.js}}
+\`\`\`
 `;
+    
     fs.writeFileSync(samplePromptPath, samplePrompt);
-    console.log('✅ Created sample prompt at', path.relative(projectRoot, samplePromptPath));
+    console.log(`✅ Created sample prompt at ${path.relative(projectRoot, samplePromptPath)}`);
   }
 }
 
-// Run setup
-setup().catch(err => {
-  console.error('❌ Setup failed:', err);
-  process.exit(1);
-}); 
+// Make the setup function available for import
+module.exports = setup;
+
+// Run setup if called directly
+if (require.main === module) {
+  setup()
+    .then(result => {
+      if (!result.success) {
+        process.exit(1);
+      }
+    })
+    .catch(err => {
+      console.error(`Fatal error during setup: ${err.message}`);
+      process.exit(1);
+    });
+} 
