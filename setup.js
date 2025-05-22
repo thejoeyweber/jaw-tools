@@ -132,7 +132,7 @@ const defaultConfig = {
     defaultProfiles: {
       'full-codebase': {
         include: '**',
-        ignore: '.git/**,node_modules/**,.next/**,out/**,build/**,coverage/**',
+        ignore: '.git/**,node_modules/**,.next/**,out/**,build/**,coverage/**,package-lock.json,yarn.lock,pnpm-lock.yaml,**/*.min.js,**/*.min.css,**/dist/**,**/*.map',
         style: 'xml',
         compress: false
       },
