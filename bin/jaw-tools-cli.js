@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+'use strict';
 
 const yargs = require('yargs/yargs');
 const { hideBin } = require('yargs/helpers');
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs-extra'); // Changed to fs-extra, aliased as fs
 
 // Global error handler for uncaught exceptions
 process.on('uncaughtException', (err) => {
@@ -17,8 +18,8 @@ process.on('uncaughtException', (err) => {
 
 // Import utilities and config manager
 const configManager = require('../src/config-manager');
-const { ensureDir } = require('../src/utils'); // ensureDir from utils will be deprecated
-const fsExtra = require('fs-extra'); // Added fs-extra
+// const { ensureDir } = require('../src/utils'); // ensureDir from utils is deprecated and its usages were replaced
+// fsExtra require is now aliased to fs at the top of the file.
 
 // Normalize path for cross-platform compatibility
 function normalizePath(...pathSegments) {
@@ -112,14 +113,10 @@ async function executeCommandModule(moduleName, functionName, argv, options = {}
     // or throw an error directly.
     const result = await module[functionName](...moduleArgs);
 
-    // If the module function returns an object with a 'success' property,
-    // check it and throw an error if not successful.
-    // This handles modules that don't throw directly but indicate failure in their return object.
-    if (result && typeof result.success === 'boolean' && !result.success) {
-      throw new Error(result.error || `Module function ${moduleName}.${functionName} reported failure.`);
-    }
+    // Module functions are now expected to throw errors directly on failure.
+    // The check for `result.success === false` is removed.
     
-    return result; // Return the result for potential further use, or undefined if no explicit return
+    return result; // Return the result of the module function if successful.
 
   } catch (error) {
     // Add context to the error
@@ -272,7 +269,7 @@ async function runRepomixCommand(argv) {
 
   try {
     const repoProfilesDir = normalizePath(projectRoot, config.directories?.repomixProfiles || '.repomix-profiles');
-    fsExtra.ensureDirSync(repoProfilesDir); // Replaced utils.ensureDir with fsExtra.ensureDirSync
+    fs.ensureDirSync(repoProfilesDir); // Now uses fs-extra via fs alias
     const profileManagerPath = normalizePath(repoProfilesDir, 'profiles-manager.js');
 
     if (!fs.existsSync(profileManagerPath)) {
@@ -714,11 +711,18 @@ yargs(hideBin(process.argv))
   .alias('update-profiles', 'refresh-profiles') // update-profiles was an alias
 
   // Custom command for meta-prompt error, as it was explicitly handled
-  .command('meta-prompt', false, {}, () => { // 'false' hides it from help
-    console.error(`❌ The meta-prompt command is not available. Use 'execution bundle' instead with the --meta-prompt option.`);
-    console.log(`Example: npx jaw-tools execution bundle --prd-file <path> --stage-name <n> --meta-prompt <path>`);
-    process.exit(1);
-  })
+  .command('meta-prompt', 
+    'This command is deprecated and has been removed.', // Updated description
+    () => {}, // No builder function needed
+    (argv) => {
+      const errorMessage = [
+        `❌ The meta-prompt command is not available.`,
+        `Use 'execution bundle' instead with the --meta-prompt option.`,
+        `Example: npx jaw-tools execution bundle --prd-file <path> --stage-name <n> --meta-prompt <path>`
+      ].join('\n');
+      throw new Error(errorMessage); // Error will be caught and handled by .fail()
+    }
+  )
   
   .help() // Enable --help option. Keep this towards the end.
   .alias('h', 'help') // Also keep alias with help.

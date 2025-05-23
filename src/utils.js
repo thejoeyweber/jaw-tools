@@ -121,15 +121,14 @@ function runCommand([cmd, args = []], index) { // Ensure args defaults to an emp
  * @param {string} dir Directory path.
  * @deprecated Use fs-extra.ensureDirSync() or fs-extra.ensureDir() instead for better error handling and async options.
  *             This function uses native `fs.mkdirSync` and does not provide detailed error feedback through exceptions
- *             in the same way `fs-extra` might. It also lacks an asynchronous version.
  */
-function ensureDir(dir) {
-  if (!fs.existsSync(dir)) {
-    // fs.mkdirSync can throw an error, which is fine for this deprecated function.
-    // Consumers should migrate to fs-extra for more robust error handling.
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
+// function ensureDir(dir) {
+//   if (!fs.existsSync(dir)) {
+//     // fs.mkdirSync can throw an error, which is fine for this deprecated function.
+//     // Consumers should migrate to fs-extra for more robust error handling.
+//     fs.mkdirSync(dir, { recursive: true });
+//   }
+// }
 
 /**
  * Creates a readline interface for interactive user prompts in the console.
@@ -314,7 +313,7 @@ module.exports = {
   getTokenCount,
   runCommand,
   resolveCommandAlias,
-  ensureDir,
+  // ensureDir, // Removed as it's deprecated and usages are updated
   createInterface,
   askQuestion,
   resolveFileConflict,
