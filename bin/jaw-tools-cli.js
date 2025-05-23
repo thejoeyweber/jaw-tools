@@ -39,7 +39,8 @@ const validCommands = [
   'refresh-profiles', 'update-profiles',
   'execution', 'e',
   'version', 'v',
-  'help', 'h'
+  'help', 'h',
+  'ci'
 ];
 
 // Initialize if not already done
@@ -57,6 +58,10 @@ if (!fs.existsSync(configPath) && command !== 'init' && command !== 'setup' && c
 
 // Main command switch
 switch (command) {
+  case 'ci':
+    runCiCommand(args);
+    break;
+    
   case 'init':
   case 'setup':
     runSetup();
@@ -141,6 +146,62 @@ switch (command) {
     }
     console.log(`Run 'npx jaw-tools help' to see available commands.`);
     process.exit(1);
+}
+
+// CI Command
+function runCiCommand(args) {
+  const ciArgs = args.slice(); // All arguments after 'ci'
+  const ciSubCommand = ciArgs.shift(); // Expect 'config'
+
+  if (ciSubCommand === 'config') {
+    const options = {
+      provider: undefined,
+      out: undefined,
+      dryRun: false
+    };
+    for (let i = 0; i < ciArgs.length; i++) {
+      if (ciArgs[i] === '--provider' && ciArgs[i+1] && !ciArgs[i+1].startsWith('--')) {
+        options.provider = ciArgs[i+1];
+        i++;
+      } else if (ciArgs[i] === '--out' && ciArgs[i+1] && !ciArgs[i+1].startsWith('--')) {
+        options.out = ciArgs[i+1];
+        i++;
+      } else if (ciArgs[i] === '--dry-run') {
+        options.dryRun = true;
+      } else if (ciArgs[i].startsWith('--')) {
+        // Allow unknown options for now, generateCIConfig might handle them or ignore
+        // console.warn(`⚠️ Unknown or malformed option for 'ci config': ${ciArgs[i]}`);
+      }
+    }
+    
+    // Dynamically require to avoid loading if not used
+    const { generateCIConfig } = require('../lib/ci-config'); 
+    generateCIConfig(options)
+      .then(result => {
+        if (!result.success) {
+          console.error(`❌ CI Config generation failed: ${result.error || 'Unknown error'}`);
+          process.exit(1);
+        }
+        // Success message is handled by generateCIConfig itself
+        process.exit(0);
+      })
+      .catch(err => {
+        console.error(`❌ Fatal error during CI config generation: ${err.message}`);
+        if (process.env.DEBUG && err.stack) {
+          console.error(err.stack);
+        }
+        process.exit(1);
+      });
+  } else if (ciSubCommand === undefined) {
+    console.error(`❌ Missing subcommand for 'ci'. Available: config`);
+    showCiHelp(); // Placeholder for now
+    process.exit(1);
+  } 
+  else {
+    console.error(`❌ Unknown 'ci' subcommand: '${ciSubCommand}'. Available: config`);
+    showCiHelp(); // Placeholder for now
+    process.exit(1);
+  }
 }
 
 // Helper Functions
@@ -746,6 +807,12 @@ Commands:
     init                  Initialize execution tracking for a Mini-PRD
     bundle                Bundle context for an execution stage
     record-step           Record execution step results and generate summary
+
+  ci <subcommand>         Manage CI/CD configurations
+    config [options]      Scaffold CI workflow YAML
+      --provider <name>   Specify CI provider (e.g., github, gitlab; default: github)
+      --out <path>        Output path for the CI workflow file (default from config)
+      --dry-run           Print the generated YAML to console without writing to file
   
   version                 Show jaw-tools version
   help                    Show this help
@@ -758,6 +825,16 @@ Aliases:
   e = execution
   v = version
   h = help
+`);
+}
+
+function showCiHelp() {
+  console.log(`
+  ci <subcommand>         Manage CI/CD configurations
+    config [options]      Scaffold CI workflow YAML
+      --provider <name>   Specify CI provider (e.g., github, gitlab; default: github)
+      --out <path>        Output path for the CI workflow file (default from config)
+      --dry-run           Print the generated YAML to console without writing to file
 `);
 }
 

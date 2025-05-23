@@ -183,6 +183,61 @@ List available sequences:
 npx jaw-tools workflow list
 ```
 
+### CI/CD Workflow Generation
+
+The `jaw ci config` command helps you scaffold a CI/CD workflow YAML file tailored for your project, based on common stages and configurations.
+
+```bash
+# Interactively generate CI config (future feature, currently non-interactive)
+# npx jaw ci config
+
+# Generate CI config for GitHub (default) and print to console
+npx jaw ci config --dry-run
+
+# Generate CI config for a specific provider and output path
+npx jaw ci config --provider gitlab --out .gitlab-ci.yml
+```
+
+**Options:**
+
+*   `--provider <name>`: Specify the CI/CD provider.
+    *   Supported: `github` (default), `gitlab`. (Note: While `circleci` might be mentioned conceptually, ensure templates exist for it).
+    *   The generated output structure and some configurations might differ based on the provider.
+*   `--out <path>`: Define a custom output path for the generated workflow file.
+    *   Default for GitHub: `.github/workflows/ci.yml`
+    *   Default for GitLab: `.gitlab-ci.yml` (conventionally)
+*   `--dry-run`: Print the generated YAML to the console instead of writing it to a file. This is useful for previewing the output.
+
+**Customization via `jaw-tools.config.js`:**
+
+You can pre-configure the CI generation by adding a `ciConfig` section to your `jaw-tools.config.js` file:
+
+```javascript
+// In jaw-tools.config.js
+module.exports = {
+  // ... other configurations ...
+  ciConfig: {
+    provider: 'github', // Default CI provider (e.g., 'github', 'gitlab')
+    out: '.github/workflows/ci.yml', // Default output path
+    stages: [ // Define the stages for your CI pipeline
+      { name: 'lint', command: 'npm run lint' },
+      { name: 'types', command: 'npm run type-check' },
+      { name: 'test', command: 'npm test -- --coverage' },
+      { name: 'a11y', command: 'npm run a11y' },
+      { name: 'perf', command: 'npm run perf -- --ci' }
+      // Add or modify stages as needed
+    ],
+    env: { // Shared environment variables for all jobs
+      CI: 'true',
+      NODE_ENV: 'test',
+      // Add other shared environment variables
+    }
+  }
+};
+```
+
+The command line options (`--provider`, `--out`) will override the values set in `jaw-tools.config.js` if used. The stages and environment variables from the configuration will be used to populate the generated workflow file. Stage templates (e.g., `lint.stage.yml`, `test.stage.yml` in `templates/ci/`) are used to build the individual jobs in the workflow.
+
 ### System Diagnostics
 
 Check the health of your jaw-tools setup:
@@ -277,6 +332,7 @@ module.exports = {
 | `jaw-tools mini-prd create <name>` | Create a new Mini-PRD |
 | `jaw-tools mini-prd update <id>` | Update a Mini-PRD |
 | `jaw-tools mini-prd snapshot <id>` | Generate a snapshot for a Mini-PRD |
+| `jaw-tools ci config [options]` | Scaffold a CI/CD workflow YAML file |
 | `jaw-tools version` | Show version information |
 | `jaw-tools help` | Show help message |
 

@@ -55,6 +55,18 @@ const defaultConfig = {
       codeSnapshots: 'temp_code_snapshots',
       compiledPrompts: 'temp_compiled_prompts'
     }
+  },
+  ciConfig: {
+    provider: 'github', // Default CI provider
+    out: '.github/workflows/ci.yml', // Default output path for GitHub
+    stages: [
+      { name: 'lint', command: 'npm run lint' },
+      { name: 'types', command: 'npm run type-check' },
+      { name: 'test', command: 'npm test -- --coverage' },
+      { name: 'a11y', command: 'npm run a11y' },
+      { name: 'perf', command: 'npm run perf -- --ci' }
+    ],
+    env: { CI: 'true', NODE_ENV: 'test' } // Shared environment variables
   }
 };
 

@@ -1,0 +1,7 @@
+<JOB_NAME>:
+  name: Security Scan
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v3
+    - name: Run Security Scan
+      run: <COMMAND> # Placeholder for security scan command
