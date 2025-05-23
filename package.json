@@ -17,7 +17,7 @@
     "doctor": "jaw-tools doctor",
     "test-install": "node test-install.js",
     "build": "tsc",
-    "test": "node test/variables.test.js && node test/parser.test.js && node test/resolver.test.js && node test/e2e-compile.test.js && node test/e2e-docs.test.js"
+    "test": "node test/variables.test.js && node test/parser.test.js && node test/resolver.test.js && node test/e2e-compile.test.js && node test/e2e-docs.test.js && node test/test-scaffold.test.js && node test/e2e-test-scaffold.test.js"
   },
   "dependencies": {
     "fs-extra": "^11.3.0",

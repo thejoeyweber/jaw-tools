@@ -139,4 +139,12 @@ module.exports = {
   //     }
   //   }
   // ],
+
+  // Test Scaffolding configuration
+  // testScaffold: {
+  //   templateDir: 'templates/tests/', // Where your test stub templates live
+  //   fileNaming: '{feature}.{type}.test.ts', // How generated test files are named
+  //   defaultTypes: ['unit', 'integration', 'e2e'], // Default test types to generate
+  //   todoMarker: '// TODO: Implement test for <FEATURE_NAME>', // Placeholder for test content
+  // },
 }; 

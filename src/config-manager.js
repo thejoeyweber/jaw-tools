@@ -56,6 +56,12 @@ const defaultConfig = {
       codeSnapshots: 'temp_code_snapshots',
       compiledPrompts: 'temp_compiled_prompts'
     }
+  },
+  testScaffold: {
+    templateDir: 'templates/tests/', // Relative to project root
+    fileNaming: '{feature}.{type}.test.ts', // Placeholders: {feature}, {type}
+    defaultTypes: ['unit', 'integration', 'a11y', 'api'],
+    todoMarker: '// TODO: write meaningful assertions for <FEATURE_NAME>' // <FEATURE_NAME> will be replaced
   }
 };
 

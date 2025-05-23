@@ -19,6 +19,7 @@ const { ensureDir } = require('../src/utils');
 const { previewPrompt } = require('../lib/prompt-preview');
 const { generatePromptDocs } = require('../lib/prompt-docs');
 const compileLib = require('../lib/compile-prompt');
+const { scaffoldTests } = require('../lib/test-scaffold');
 
 // Normalize path for cross-platform compatibility
 function normalizePath(...pathSegments) {
@@ -43,6 +44,7 @@ const validCommands = [
   'refresh', 'update',
   'refresh-profiles', 'update-profiles',
   'execution', 'e',
+  'test-scaffold', 'ts',
   'version', 'v',
   'help', 'h'
 ];
@@ -109,6 +111,55 @@ switch (command) {
     generatePromptDocs().then(res => {
       if (res && !res.success) process.exit(1);
     }).catch(handleAsyncError);
+    break;
+
+  case 'test-scaffold':
+  case 'ts':
+    // This will be implemented properly in the next steps.
+    // For now, just log that the command was recognized.
+    // Actual logic will call a function from 'lib/test-scaffold.js'
+
+    const featureNameSlug = args[0];
+    if (!featureNameSlug) {
+      console.error('Error: Missing <feature-name-slug> argument.');
+      console.log('Usage: jaw-tools test-scaffold <feature-name-slug> [--types type1,type2] [--all] [--dry-run] [--force]');
+      process.exit(1);
+    }
+
+    // Placeholder for actual option parsing and function call
+    console.log(`Recognized 'test-scaffold' for feature: ${featureNameSlug}`);
+    console.log('Arguments received:', args);
+    
+    const options = {
+      // Ensure types are parsed as an array if provided, otherwise null/undefined
+      types: args.includes('--types') ? (args[args.indexOf('--types') + 1] ? args[args.indexOf('--types') + 1].split(',') : []) : null,
+      all: args.includes('--all'),
+      dryRun: args.includes('--dry-run'),
+      force: args.includes('--force')
+    };
+    
+    // Filter out null if types option was given but no value followed
+    if (options.types && options.types.length === 0 && args.includes('--types')) {
+        console.warn("Warning: --types option was provided without any specified types. Using default types.");
+        options.types = null; // Fall back to default types
+    }
+
+    const currentConfig = configManager.getConfig(); // Ensure configManager is required
+
+    scaffoldTests(featureNameSlug, options, currentConfig)
+      .then(result => {
+        if (!result || !result.success) {
+          // Error messages are usually logged by scaffoldTests itself
+          if (!result.aborted) { // Don't exit with error code if user just chose not to proceed
+               process.exit(1);
+          } else {
+               process.exit(0); // User aborted, not an error
+          }
+        }
+        // Success messages will be logged by scaffoldTests in later steps
+        process.exit(0);
+      })
+      .catch(handleAsyncError); // Ensure handleAsyncError is defined
     break;
 
   case 'workflow':
@@ -780,6 +831,9 @@ Commands:
                             --ci for non-interactive mode (e.g. in CI).
   prompt-preview (pp) <template.md> [--out <file>] Preview template variable resolution interactively.
   prompt-docs (pd)                       Generate documentation for variables found in prompts.
+  
+  test-scaffold (ts) <feature-name-slug> [--types type1,type2] [--all] [--dry-run] [--force]
+                                Generate test file stubs for a new feature.
   
   workflow [sequence]     Run command sequences
     list                  Show available command sequences
