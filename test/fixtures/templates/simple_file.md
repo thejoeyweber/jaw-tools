@@ -1,0 +1,1 @@
+Hello {{/files/name.txt}}!

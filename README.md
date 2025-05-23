@@ -120,31 +120,38 @@ npx jaw-tools repomix delete old-profile
 
 ### Prompt Compilation
 
-Compile prompt templates with file content inclusion:
+jaw-tools features a powerful **Typed Variable System** for embedding dynamic content into your prompt templates. This system replaces the older simple file inclusion.
 
-```bash
-# Compile a prompt template
-npx jaw-tools compile _docs/prompts/my-prompt.md
-```
+**Key Syntaxes:**
 
-In your templates, you can include file contents using the `{{path/to/file}}` syntax (no spaces between brackets):
+1.  **File Inclusion (`{{/path/to/file.ext}}`):**
+    *   Directly includes the content of a specified file.
+    *   Example: `{{/src/main.js}}`
+    *   This uses the built-in `file` variable type. It supports glob patterns (e.g., `{{/src/**/*.ts}}`) if `glob` is installed.
 
-```markdown
-# My Template
+2.  **Typed Variables (`{{$typeName:filterName(arg)|default=defaultValue}}`):**
+    *   Allows for more complex data lookups and transformations.
+    *   `$typeName`: Specifies the type of variable (e.g., `file`, `env`, or custom types).
+    *   `:filterName(arg)`: Optional. Apply one or more filters to transform the discovered data. Arguments to filters can be quoted if they contain special characters.
+    *   `|default=defaultValue`: Optional. Provides a fallback value if the variable cannot be resolved.
+    *   Example: `{{$env:HOME|default=/user/unknown}}` or `{{$file:toUpperCase /data/config.txt}}`
 
-Here's the project configuration:
+**Variable Resolution Process:**
 
-```json
-{{package.json}}
-```
+When a prompt is compiled (or previewed):
+1.  **Discovery**: The system attempts to find items matching the variable's `key` (e.g., file path or type name) using the `discover` method of the corresponding variable type.
+2.  **User Choice (Interactive Mode)**: If multiple items are discovered, and not in CI mode, you'll be prompted to choose one.
+3.  **CI Mode/Defaults**: In CI mode or if no items are discovered, it attempts to use an environment variable matching the key or a specified default value.
+4.  **Validation**: The chosen item can be validated by the variable type's `validate` method.
+5.  **Filtering**: Any specified filters are applied to the (potentially validated) items.
+6.  **Rendering**: The final item is rendered into the template using the type's `render` method.
 
-You can also include files matching a glob pattern:
+**IMPORTANT:** For file paths like `{{/path/to/file}}`, ensure there are no spaces between the double braces and the path. For typed variables, the syntax is more flexible but adhere to the structure shown.
 
-```javascript
-{{src/**/*.js}}
-```
+**New Commands for Prompt Variables:**
 
-IMPORTANT: Make sure there are no spaces between the double braces and the file path, otherwise it will result in an error like: `<!-- ERROR: Could not read file file-path -->`.
+*   `jaw-tools prompt-preview <template.md>`: Interactively preview how variables in a template will be resolved.
+*   `jaw-tools prompt-docs`: Generate Markdown documentation for all unique variables found across your prompt templates.
 
 ### Sequential Command Runner
 
@@ -233,10 +240,17 @@ module.exports = {
   
   // Prompt compiler configuration
   promptCompiler: {
-    variables: {},
-    useNumberedOutputs: true
+    variables: {
+      // Old static variables (still supported but less flexible than typed variables)
+      // PROJECT_NAME: 'My Awesome Project',
+    },
+    useNumberedOutputs: true,
+    interactive: true // Set to false for CI environments to disable interactive prompts
   },
   
+  // Custom Variable Types (see example below)
+  // variableTypes: [], 
+
   // Sequential command workflows
   workflow: {
     sequences: {
@@ -258,9 +272,78 @@ module.exports = {
     userGuide: {
       destinationFileName: 'jaw-tools-guide.md'
     }
-  }
+  },
+
+  /**
+   * Custom Variable Types
+   * Extend jaw-tools with your own variable types.
+   * Each type needs a name, a discover function, and a render function.
+   * Filters and validate functions are optional.
+   */
+  // variableTypes: [
+  //   {
+  //     name: 'myEnv', // Invoked as {{$myEnv}} or {{$myEnv:SOME_ENV_VAR_NAME}}
+  //     async discover(keyName, config) {
+  //       // keyName is 'myEnv' if invoked as {{$myEnv}}
+  //       // Example: Read an environment variable (keyName could be the ENV var name)
+  //       const value = process.env[keyName.toUpperCase()]; // Assuming keyName is the ENV var
+  //       return value ? [{ id: keyName, value: value }] : [];
+  //     },
+  //     render(item) {
+  //       return item.value;
+  //     },
+  //     // Optional validate and filters
+  //     async validate(item, keyName, config) {
+  //       if (item.value === 'invalid') return `${keyName} cannot be 'invalid'`;
+  //       return true;
+  //     },
+  //     filters: {
+  //       toLowerCase: (items) => items.map(item => ({...item, value: String(item.value).toLowerCase()}))
+  //     }
+  //   }
+  // ]
 };
 ```
+
+### Custom Variable Types
+
+You can extend jaw-tools by defining your own variable types in `jaw-tools.config.js`. Add a `variableTypes` array to your configuration. Each custom type definition must be an object with at least `name` (string), `discover` (async function), and `render` (function). `validate` (async function) and `filters` (object of functions) are optional.
+
+```javascript
+// In jaw-tools.config.js
+module.exports = {
+  // ... other configurations ...
+  variableTypes: [
+    {
+      name: 'myEnv', // Type name, e.g., {{$myEnv}} or {{$myEnv:ACTUAL_ENV_VAR_NAME}}
+      async discover(keyName, config) {
+        // keyName is 'myEnv' if invoked as {{$myEnv}}.
+        // If invoked as {{$myEnv:SOME_KEY}}, keyName would be 'SOME_KEY' (this depends on how type is defined).
+        // For this example, let's assume keyName directly IS the environment variable to lookup.
+        const value = process.env[keyName.toUpperCase()];
+        // discover should return an array of items.
+        return value !== undefined ? [{ id: keyName, value: value, name: `${keyName}=${value}` }] : [];
+      },
+      render(item) { // item is one of the objects from the array returned by discover
+        return item.value;
+      },
+      // Optional validate and filters
+      async validate(item, keyName, config) { // keyName is the original key used in template
+        if (item.value === 'FORBIDDEN_VALUE') {
+          return `Value for ${item.id} (requested by ${keyName}) cannot be 'FORBIDDEN_VALUE'`;
+        }
+        return true; // true means valid
+      },
+      filters: {
+        toLowerCase: (items) => { // items is an array of { id, value, name }
+          return items.map(item => ({ ...item, value: String(item.value).toLowerCase() }));
+        }
+      }
+    }
+  ]
+};
+```
+Remember that `discover`, `render`, `validate`, and filter functions must be actual JavaScript functions within your configuration file.
 
 ## Command Reference
 
@@ -271,7 +354,9 @@ module.exports = {
 | `jaw-tools doctor` | Check jaw-tools setup status |
 | `jaw-tools repomix list` | List available repomix profiles |
 | `jaw-tools repomix run <profile>` | Generate a codebase snapshot |
-| `jaw-tools compile <prompt-file>` | Compile a prompt template |
+| `jaw-tools compile (c) <prompt-file> [--ci]` | Compile a prompt template using the Typed Variable System. Use `--ci` for non-interactive mode. |
+| `jaw-tools prompt-preview (pp) <template.md> [--out <file>]` | Preview template variable resolution interactively. Optionally write expanded output to a file. |
+| `jaw-tools prompt-docs (pd)` | Generate Markdown documentation for variables found in prompts. |
 | `jaw-tools workflow list` | List available command sequences |
 | `jaw-tools workflow [sequence-name]` | Run a command sequence |
 | `jaw-tools mini-prd create <name>` | Create a new Mini-PRD |

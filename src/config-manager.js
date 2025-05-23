@@ -4,6 +4,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { registerVariableType, registry } = require('../dist/variables');
 
 // Default configuration
 const defaultConfig = {
@@ -114,6 +115,31 @@ function getConfig() {
   
   // Store the determined project root in the config for access by all modules
   mergedConfig.__projectRoot = projectRoot;
+
+  // Register custom variable types
+  if (mergedConfig.variableTypes && Array.isArray(mergedConfig.variableTypes)) {
+    mergedConfig.variableTypes.forEach(customType => {
+      if (customType && customType.name && typeof customType.discover === 'function' && typeof customType.render === 'function') {
+        try {
+          registerVariableType(customType.name, {
+            name: customType.name,
+            discover: customType.discover, // Should be async function
+            render: customType.render,
+            filters: customType.filters || {}, // Ensure filters is an object
+            validate: customType.validate, // Optional validate function
+          });
+          if (process.env.JAW_TOOLS_DEBUG || process.env.DEBUG) {
+            console.log(`Custom variable type "${customType.name}" registered from config.`);
+          }
+        } catch (e) {
+          console.warn(`Warning: Could not register custom variable type "${customType.name}" from config. Error: ${e.message}`);
+        }
+      } else {
+        console.warn('Warning: Invalid custom variable type found in jaw-tools.config.js. Missing name, discover, or render function.');
+      }
+    });
+  }
+  // Built-in types (e.g., 'file') should have been registered when '../dist/variables' was required.
   
   return mergedConfig;
 }

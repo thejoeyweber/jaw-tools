@@ -16,6 +16,9 @@ process.on('uncaughtException', (err) => {
 // Import utilities and config manager
 const configManager = require('../src/config-manager');
 const { ensureDir } = require('../src/utils');
+const { previewPrompt } = require('../lib/prompt-preview');
+const { generatePromptDocs } = require('../lib/prompt-docs');
+const compileLib = require('../lib/compile-prompt');
 
 // Normalize path for cross-platform compatibility
 function normalizePath(...pathSegments) {
@@ -31,8 +34,10 @@ const setupPath = normalizePath(__dirname, '..', 'setup.js');
 // List of valid commands for better error messages
 const validCommands = [
   'init', 'setup', 'scaffold', 'doctor', 'status', 
-  'repomix', 'profile', 'r', 
+  'repomix', 'profile', 'r',
   'compile', 'compile-prompt', 'c',
+  'prompt-preview', 'pp',
+  'prompt-docs', 'pd',
   'workflow', 'wf', 'w',
   'mini-prd', 'mprd',
   'refresh', 'update',
@@ -80,9 +85,32 @@ switch (command) {
   case 'compile':
   case 'compile-prompt':
   case 'c':
-    runCompilePrompt(args);
+    runCompilePromptCommand(args); // Renamed for clarity
     break;
-    
+
+  case 'prompt-preview':
+  case 'pp':
+    if (args.length === 0) {
+      console.error('Error: No template file specified. Usage: jaw-tools prompt-preview <template.md> [--out expanded.md]');
+      process.exit(1);
+    }
+    const previewOptions = {};
+    const outFlagIndex = args.indexOf('--out');
+    if (outFlagIndex !== -1 && args[outFlagIndex + 1]) {
+      previewOptions.out = args[outFlagIndex + 1];
+    }
+    previewPrompt(args[0], previewOptions).then(res => {
+      if (res && !res.success && !res.cancelled) process.exit(1);
+    }).catch(handleAsyncError);
+    break;
+
+  case 'prompt-docs':
+  case 'pd':
+    generatePromptDocs().then(res => {
+      if (res && !res.success) process.exit(1);
+    }).catch(handleAsyncError);
+    break;
+
   case 'workflow':
   case 'wf':
   case 'w':
@@ -317,46 +345,64 @@ function runRepomixGenerateFromPrd(args) {
   }
 }
 
-function runCompilePrompt(args) {
+function runCompilePromptCommand(args) { // Renamed for clarity
+  if (args.length === 0) {
+    console.error('Error: No prompt file specified. Usage: jaw-tools compile <prompt-file> [--ci]');
+    try {
+        const tempConfig = configManager.getConfig();
+        const examplePath = path.join(tempConfig.directories.prompts, 'example.md');
+        console.error(`Example: jaw-tools compile ${examplePath}`);
+    } catch(e) { console.error(`Example: jaw-tools compile _docs/prompts/example.md`); }
+    process.exit(1);
+  }
+  const compileOptions = {
+    ci: args.includes('--ci') || process.env.CI === 'true' || process.env.CI === '1'
+  };
+  const currentConfig = configManager.getConfig();
+
+  compileLib.compile(args[0], compileOptions, currentConfig)
+    .then(result => {
+      if (!result || !result.success) {
+        // Error messages should be handled by compileLib.compile or its sub-functions
+        process.exit(1);
+      }
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error(`Error in compile command execution: ${err.message}`);
+      if (err.stack && (process.env.DEBUG || process.env.JAW_TOOLS_DEBUG)) console.error(err.stack);
+      process.exit(1);
+    });
+}
+
+function runWorkflow(args) {
   try {
     // Load config
     const config = loadConfig();
     
-    // Load compile-prompt module
-    const compilePromptPath = normalizePath(__dirname, '..', 'lib', 'compile-prompt.js');
-    const compilePrompt = require(compilePromptPath);
+    // Get workflow module
+    const workflow = require('../lib/workflow');
     
-    // Parse arguments
-    if (args.length === 0) {
-      console.error('❌ Error: No prompt file specified. Usage: jaw-tools compile <prompt-file>');
-      process.exit(1);
+    // Determine the subcommand
+    const subCommand = args[0];
+    
+    if (subCommand === 'list') {
+      // List available sequences
+      workflow.listSequences(config);
+    } else {
+      // Run sequence (either specified sequence or default)
+      const sequenceName = (subCommand && !subCommand.startsWith('--')) ? subCommand : null;
+      workflow.runSequence(config, sequenceName)
+        .then(success => {
+          process.exit(success ? 0 : 1);
+        })
+        .catch(err => {
+          console.error(`Error running sequence: ${err.message}`);
+          process.exit(1);
+        });
     }
-    
-    const promptFile = args[0];
-    const options = {};
-    
-    // Extract options
-    for (let i = 1; i < args.length; i++) {
-      if (args[i].startsWith('--')) {
-        const optionName = args[i].substring(2);
-        const optionValue = args[i+1] && !args[i+1].startsWith('--') ? args[i+1] : true;
-        options[optionName] = optionValue;
-        if (optionValue !== true) i++; // Skip the value in the next iteration
-      }
-    }
-    
-    // Compile the prompt using the function with proper parameters
-    const result = compilePrompt.compile(promptFile, options, config);
-    
-    // Handle the result
-    if (!result || !result.success) {
-      console.error(`❌ Compilation failed: ${result?.error || 'Unknown error'}`);
-      process.exit(1);
-    }
-    
-    process.exit(0);
   } catch (err) {
-    console.error(`❌ Error in compile command: ${err.message}`);
+    console.error(`❌ Error in workflow command: ${err.message}`);
     process.exit(1);
   }
 }
@@ -730,7 +776,10 @@ Commands:
   
   refresh-profiles        Add new repomix profiles without changing existing ones
   
-  compile <prompt-file>   Compile a prompt template
+  compile (c) <prompt-file> [--ci] Compile a prompt template.
+                            --ci for non-interactive mode (e.g. in CI).
+  prompt-preview (pp) <template.md> [--out <file>] Preview template variable resolution interactively.
+  prompt-docs (pd)                       Generate documentation for variables found in prompts.
   
   workflow [sequence]     Run command sequences
     list                  Show available command sequences
@@ -826,6 +875,12 @@ function loadConfig() {
     console.error(`❌ Error loading config: ${err.message}`);
     return {};
   }
+}
+
+function handleAsyncError(err) {
+  console.error(`CLI Async Error: ${err.message}`);
+  if (err.stack && (process.env.DEBUG || process.env.JAW_TOOLS_DEBUG)) console.error(err.stack);
+  process.exit(1);
 }
 
 // Utility function to convert kebab-case to camelCase
