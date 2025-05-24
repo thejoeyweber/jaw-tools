@@ -55,6 +55,30 @@ const defaultConfig = {
       codeSnapshots: 'temp_code_snapshots',
       compiledPrompts: 'temp_compiled_prompts'
     }
+  },
+  promptAudit: {
+    defaultPromptPath: '_docs/prompts/',
+    requiredFields: ['docType', 'version', 'lastUpdated'],
+    requireTestInstructions: true,
+    codeGenKeywords: ['write code', 'generate function', 'scaffold', 'create a class', 'export code', 'implement method'],
+    testPlanKeywords: ['include test cases', 'generate unit tests', 'write test plan', 'ensure tests are included', 'testing instructions'],
+    fixableFields: ['docType', 'version', 'lastUpdated'], // For --fix mode later
+    style: { // For --fix mode later
+      placeholderFormat: '{{ variable }}' // or '{{$var}}'
+    },
+    // Optional: Define if and how variables should be declared (e.g., in front-matter)
+    // variableDeclarations: {
+    //   inFrontMatter: true, // example
+    //   key: 'variables'     // example
+    // }
+    llmAudit: {
+      enabled: false, // Disabled by default
+      command: '', // e.g., 'my-llm-cli --prompt-file {PROMPT_FILE}' or 'python run_llm_audit.py {PROMPT_FILE}'
+      // {PROMPT_FILE} will be replaced with a temporary file path containing the audit query + raw prompt.
+      // The external command is expected to print the LLM's response to stdout.
+      timeoutMs: 30000, // Timeout for the LLM command
+      auditPromptTemplate: `Please audit the following LLM prompt for clarity and completeness:\n\n- Are all variables clearly defined and unambiguous?\n- Does it provide enough structure for reliable output?\n- If it asks the LLM to generate code, does it also require a test plan?\n\n---\n{RAW_PROMPT_CONTENT}`
+    }
   }
 };
 

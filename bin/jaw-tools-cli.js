@@ -23,7 +23,9 @@ function normalizePath(...pathSegments) {
 }
 
 // Parse command line arguments
-const [,, command, ...args] = process.argv;
+// const [,, command, ...args] = process.argv; // Replaced by yargs
+const yargs = require('yargs/yargs'); // Added
+const { hideBin } = require('yargs/helpers'); // Added
 
 // Path to the setup script
 const setupPath = normalizePath(__dirname, '..', 'setup.js');
@@ -45,105 +47,237 @@ const validCommands = [
 // Initialize if not already done
 const projectRoot = configManager.findProjectRoot();
 const configPath = normalizePath(projectRoot, 'jaw-tools.config.js');
-if (!fs.existsSync(configPath) && command !== 'init' && command !== 'setup' && command !== 'help' && command !== 'h' && command !== 'version' && command !== 'v') {
-  console.log('⚠️ jaw-tools configuration not found. Running setup...');
-  runSetup();
-  
-  // Only exit if there are no additional commands to run (e.g., execution init)
-  if (command !== 'execution' && command !== 'e') {
-    return;
-  }
+
+// Yargs setup
+const yargsInstance = yargs(hideBin(process.argv))
+  .command({
+    command: 'ai <subcommand>', // As per current instruction block
+    describe: 'AI related commands',
+    builder: (yargsAi) => {
+      return yargsAi.command({
+        command: 'prompt-audit',
+        describe: 'Audit LLM prompt templates for quality and standards.',
+        aliases: ['pa', 'audit-prompts'],
+        builder: {
+          'path': {
+            describe: 'Directory of markdown prompt files to audit.',
+            type: 'string',
+          },
+          'fix': {
+            describe: 'Automatically fix fixable issues.',
+            type: 'boolean',
+            default: false,
+          },
+          'dry-run': {
+            describe: 'Simulate audit and show changes without writing files.',
+            type: 'boolean',
+            default: false,
+          }
+        },
+        handler: (argv) => {
+          const promptAuditor = require('../lib/prompt-auditor');
+          const config = configManager.getConfig(); // Assuming configManager is available at the top
+        
+          // For this step, we pass argv directly. Config integration comes later for default path.
+          // The auditPrompts function will use argv.path or a hardcoded default for now.
+          const results = promptAuditor.auditPrompts(argv, config.promptAudit || {}); 
+        
+          console.log('\nAudit Results:');
+          console.log(`  Scanned: ${results.summary.scanned}`);
+          console.log(`  Passed: ${results.summary.passed}`);
+          console.log(`  Issues: ${results.summary.issues}`);
+          console.log(`  Auto-fixed: ${results.summary.fixed}`);
+        
+          results.details.forEach(fileReport => {
+            const hasUnfixedCriticalIssues = fileReport.issues.some(iss => iss.severity === 'critical' && !iss.fixed);
+            const hasOnlyInfoOrFixedIssues = fileReport.issues.length > 0 && !hasUnfixedCriticalIssues;
+
+            if (fileReport.issues.length > 0) {
+              let filePrefix = '  ';
+              if (hasUnfixedCriticalIssues) {
+                filePrefix += '✖';
+              } else if (hasOnlyInfoOrFixedIssues) {
+                // File has issues, but all critical ones are fixed or they are info-level
+                filePrefix += (fileReport.fixesAppliedCount > 0) ? '✓' : 'ℹ️'; // Checkmark if fixes were applied, info otherwise
+              } else {
+                 // Should not happen if issues.length > 0, but as a fallback
+                filePrefix += '•';
+              }
+              console.log(`${filePrefix} ${fileReport.filepath}${fileReport.fixesAppliedCount > 0 ? ` (${fileReport.fixesAppliedCount} fix(es) applied)` : ''}`);
+              
+              fileReport.issues.forEach(issue => {
+                let issuePrefix = '    ';
+                if (issue.fixed) {
+                  issuePrefix += '✓ FIXED: ';
+                } else if (issue.severity === 'critical') {
+                  issuePrefix += '✖ CRITICAL: ';
+                } else if (issue.severity === 'info') {
+                  issuePrefix += 'ℹ️ INFO: ';
+                } else {
+                  issuePrefix += '• '; // Default for other severities or if severity is not set
+                }
+                console.log(`${issuePrefix}${issue.message} (${issue.type})`);
+              });
+            } else if (fileReport.fixesAppliedCount > 0) { 
+              // No remaining issues, but fixes were applied
+              console.log(`  ✓ ${fileReport.filepath} (${fileReport.fixesAppliedCount} fix(es) applied) - All issues resolved.`);
+            } else {
+              // No issues and no fixes - this is a truly "passed" file from the start or after fixes
+              // Optionally, confirm files that passed if verbose output is desired
+              // console.log(`  ✔ ${fileReport.filepath}`);
+            }
+          });
+
+          if (results.summary.error) {
+            console.error(`\n❌ Audit completed with error: ${results.summary.error}`);
+            process.exit(1);
+          } else {
+            console.log('\nAudit completed.');
+            process.exit(results.summary.issues > 0 ? 1 : 0); // Exit with 1 if there are remaining critical issues
+          }
+        }
+      })
+      .demandCommand(1, 'Please specify an AI subcommand (e.g., prompt-audit).');
+    },
+    handler: (argv) => {
+      // This handler is for 'jaw-tools ai' without a subcommand, as per instructions.
+      // However, with 'ai <subcommand>', yargs will error if no subcommand is given,
+      // potentially before this handler is reached.
+      console.log("AI Subcommands: prompt-audit");
+      // Optionally, you can use yargsInstance.showHelpForCommand('ai') or similar
+      // or print the help for 'ai' subcommands.
+      // yargs.help(); // This might be too broad, better to show specific help for 'ai'
+      process.exit(0);
+    }
+  })
+  .command({
+    command: 'version',
+    aliases: ['v'],
+    describe: 'Show version information.',
+    handler: () => {
+      showVersion(); 
+      process.exit(0); 
+    }
+  })
+  .command({
+    command: 'help', 
+    aliases: ['h'],
+    describe: 'Show detailed help information.',
+    handler: () => {
+      showHelp(); 
+      process.exit(0); 
+    }
+  })
+  .help('help-flag') 
+  .alias('help-flag', 'H') 
+  .demandCommand(1, "You need at least one command. Try 'jaw-tools help'.")
+  // .strict() // Keep this commented out for now to allow fallback
+  ;
+
+const argv = yargsInstance.argv; // Parse arguments
+
+const commandFromYargs = argv._[0];
+const originalArgs = process.argv.slice(2); // Get original raw args for fallback
+let argsForSwitch = [];
+
+if (commandFromYargs) {
+    const commandIndex = originalArgs.indexOf(commandFromYargs);
+    if (commandIndex !== -1) {
+        argsForSwitch = originalArgs.slice(commandIndex + 1);
+    } else {
+        // If commandFromYargs is not in originalArgs (e.g., alias was used),
+        // then pass all non-option args after the first yargs recognized token.
+        argsForSwitch = argv._.slice(1);
+    }
 }
 
-// Main command switch
-switch (command) {
-  case 'init':
-  case 'setup':
-    runSetup();
-    break;
-    
-  case 'scaffold':
-    runScaffold(args.includes('--force'));
-    break;
-    
-  case 'doctor':
-  case 'status':
-    runDoctor();
-    break;
-    
-  case 'repomix':
-  case 'profile':
-  case 'r':
-    runRepomixCommand(args);
-    break;
-    
-  case 'compile':
-  case 'compile-prompt':
-  case 'c':
-    runCompilePrompt(args);
-    break;
-    
-  case 'workflow':
-  case 'wf':
-  case 'w':
-    runWorkflow(args);
-    break;
-    
-  case 'mini-prd':
-  case 'mprd':
-    runMiniPrdCommand(args);
-    break;
-    
-  case 'refresh':
-  case 'update':
-    runRefresh(args);
-    break;
-    
-  case 'refresh-profiles':
-  case 'update-profiles':
-    runRefreshProfiles(args);
-    break;
-    
-  case 'execution':
-  case 'e':
-    runExecutionCommand(args);
-    break;
-    
-  case 'version':
-  case 'v':
-    showVersion();
-    break;
-    
-  case 'meta-prompt':
-    console.error(`❌ The meta-prompt command is not available. Use 'execution bundle' instead with the --meta-prompt option.`);
-    console.log(`Example: npx jaw-tools execution bundle --prd-file <path> --stage-name <n> --meta-prompt <path>`);
-    process.exit(1);
-    break;
-    
-  case 'help':
-  case 'h':
-    showHelp();
-    break;
-    
-  case undefined:
-  case '':
-    console.error(`❌ No command specified. Run 'npx jaw-tools help' to see available commands.`);
-    process.exit(1);
-    break;
-    
-  default:
-    // Check if it's close to a valid command and suggest alternatives
-    const closest = findClosestCommand(command);
-    if (closest) {
-      console.error(`❌ Unknown command: '${command}'. Did you mean '${closest}'?`);
-    } else {
-      console.error(`❌ Unknown command: '${command}'`);
+// Fallback logic
+// If a yargs command ('ai', 'version' or 'help') was executed, its handler calls process.exit(),
+// so this part of the script won't be reached for those commands.
+// Note: if 'ai' is called without a subcommand, its handler also exits.
+if (commandFromYargs && commandFromYargs !== 'ai' && commandFromYargs !== 'version' && commandFromYargs !== 'help') {
+    // Config initialization check (as per original script logic)
+    if (!fs.existsSync(configPath) && 
+        commandFromYargs !== 'init' && 
+        commandFromYargs !== 'setup') {
+      console.log('⚠️ jaw-tools configuration not found. Running setup...');
+      runSetup(); // This should ideally handle its own exit or flow.
+                  // If it doesn't, the original command will proceed.
     }
-    console.log(`Run 'npx jaw-tools help' to see available commands.`);
-    process.exit(1);
+
+    // Main command switch using commandFromYargs and argsForSwitch
+    switch (commandFromYargs) {
+      case 'init':
+      case 'setup':
+        runSetup();
+        break;
+      case 'scaffold':
+        runScaffold(argsForSwitch.includes('--force'));
+        break;
+      case 'doctor':
+      case 'status':
+        runDoctor();
+        break;
+      case 'repomix':
+      case 'profile':
+      case 'r':
+        runRepomixCommand(argsForSwitch);
+        break;
+      case 'compile':
+      case 'compile-prompt':
+      case 'c':
+        runCompilePrompt(argsForSwitch);
+        break;
+      case 'workflow':
+      case 'wf':
+      case 'w':
+        runWorkflow(argsForSwitch);
+        break;
+      case 'mini-prd':
+      case 'mprd':
+        runMiniPrdCommand(argsForSwitch);
+        break;
+      case 'refresh':
+      case 'update':
+        runRefresh(argsForSwitch);
+        break;
+      case 'refresh-profiles':
+      case 'update-profiles':
+        runRefreshProfiles(argsForSwitch);
+        break;
+      case 'execution':
+      case 'e':
+        runExecutionCommand(argsForSwitch);
+        break;
+      case 'meta-prompt':
+        console.error(`❌ The meta-prompt command is not available. Use 'execution bundle' instead with the --meta-prompt option.`);
+        console.log(`Example: npx jaw-tools execution bundle --prd-file <path> --stage-name <n> --meta-prompt <path>`);
+        process.exit(1);
+        break;
+      default:
+        const closest = findClosestCommand(commandFromYargs);
+        if (closest) {
+          console.error(`❌ Unknown command: '${commandFromYargs}'. Did you mean '${closest}'?`);
+        } else {
+          console.error(`❌ Unknown command: '${commandFromYargs}'`);
+        }
+        // Show yargs compact help for unknown commands if they fall through
+        yargsInstance.showHelp();
+        process.exit(1);
+    }
+} else if (!commandFromYargs && argv.helpFlag) {
+    // If no command was specified, but --help-flag or -H was used
+    yargsInstance.showHelp(); // Show yargs's own compact help
+    process.exit(0);
+} else if (!commandFromYargs) {
+    // No command and no yargs help flag, show custom detailed help
+    showHelp();
+    process.exit(0);
 }
 
 // Helper Functions
+// Ensure showVersion() and showHelp() exist as defined in the original script.
+// If they don't call process.exit(0) themselves, yargs handlers for them do.
 function runSetup() {
   try {
     if (!fs.existsSync(setupPath)) {
