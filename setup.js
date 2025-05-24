@@ -126,6 +126,7 @@ const defaultConfig = {
     docs: '_docs',
     prompts: '_docs/prompts',
     compiledPrompts: '_docs/prompts-compiled',
+    projectDocs: '_docs/project-docs', // Ensure this line is present
     miniPrdTemplatePath: '_docs/project-docs/templates/mini-prd-template.md'
   },
   repomix: {

@@ -773,9 +773,10 @@ function runRefresh(args) {
     
     // Get refresh module
     const refresh = require('../lib/refresh');
+    const config = loadConfig();
     
     // Run refresh
-    refresh.refreshTemplates(options)
+    refresh.refreshTemplates(config, options)
       .then(result => {
         if (!result.success) {
           console.error(`❌ Refresh failed: ${result.error || 'Unknown error'}`);
@@ -798,9 +799,10 @@ function runRefreshProfiles(args) {
   try {
     // Get refresh module
     const refresh = require('../lib/refresh');
+    const config = loadConfig();
     
     // Run profile refresh
-    refresh.refreshRepomixProfiles()
+    refresh.refreshRepomixProfiles(config)
       .then(result => {
         if (!result.success) {
           console.error(`❌ Profile refresh failed: ${result.error || 'Unknown error'}`);

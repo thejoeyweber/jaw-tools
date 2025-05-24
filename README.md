@@ -118,6 +118,8 @@ npx jaw-tools repomix add frontend "app/**,components/**" "*.test.js"
 npx jaw-tools repomix delete old-profile
 ```
 
+**Note on `profiles-manager.js`**: When you run a `jaw-tools repomix` command, `jaw-tools` ensures that a compatible version of the `profiles-manager.js` script (which powers Repomix operations) is present in your project's configured Repomix profiles directory (default: `.repomix-profiles/`). If this script is missing, `jaw-tools` will automatically copy its own version to this location. This file is typically, and should be, ignored by version control (e.g., added to `.gitignore`).
+
 ### Prompt Compilation
 
 Compile prompt templates with file content inclusion:
@@ -207,17 +209,19 @@ module.exports = {
   directories: {
     repomixProfiles: '.repomix-profiles',
     docs: '_docs',
+    projectDocs: '_docs/project-docs', // For project-specific, non-template documents
     prompts: '_docs/prompts',
     compiledPrompts: '_docs/prompts-compiled',
     miniPrdTemplatePath: '_docs/project-docs/templates/mini-prd-template.md'
   },
+  // *The `miniPrdTemplatePath` specifies the template used for new Mini-PRDs. Its default is managed internally by the `mini-prd create` command but can be overridden here.*
   
   // Repomix configuration
   repomix: {
     defaultProfiles: {
       'full-codebase': {
         include: '**',
-        ignore: '.git/**,node_modules/**,.next/**,out/**,build/**,coverage/**',
+        ignore: '.git/**,node_modules/**,.next/**,out/**,build/**,coverage/**,package-lock.json,yarn.lock,pnpm-lock.yaml,**/*.min.js,**/*.min.css,**/dist/**,**/*.map',
         style: 'xml',
         compress: false
       },
@@ -258,9 +262,31 @@ module.exports = {
     userGuide: {
       destinationFileName: 'jaw-tools-guide.md'
     }
+  }, // <-- Add comma here if missing
+
+  // AI-Assisted Execution Workflow Configuration
+  executionWorkflow: {
+    // Base directory for storing all execution-related files for PRDs
+    baseDir: '_docs/project-docs/execution',
+    // Directory containing central meta-prompts for execution stages
+    centralMetaPromptDir: '_docs/prompts/meta',
+    // Core documents to bundle into meta-prompts for context
+    coreDocsForBundling: {
+      sppg: '_docs/project-docs/SPPG.md', // Strategic Project Planning Guide
+      northStar: '_docs/project-docs/NORTH_STAR.md' // Project's North Star document
+    },
+    // Default Repomix profile to use if not specified in PRD or command
+    defaultRepomixProfile: 'full-codebase',
+    // Subdirectory names for temporary files generated during execution stages
+    tempSubDirs: {
+      codeSnapshots: 'temp_code_snapshots', // For Repomix snapshots
+      compiledPrompts: 'temp_compiled_prompts' // For compiled meta-prompts
+    }
   }
 };
 ```
+
+Note: While `projectScaffolding.scaffoldTargetRootDir` is present, the primary scaffolding of documentation templates from `templates/scaffold_root` is directed to the `directories.docs` path (e.g., `_docs/`). The `scaffoldTargetRootDir` might be used by other future scaffolding features or custom extensions but does not currently affect the main documentation template placement.
 
 ## Command Reference
 
@@ -271,12 +297,17 @@ module.exports = {
 | `jaw-tools doctor` | Check jaw-tools setup status |
 | `jaw-tools repomix list` | List available repomix profiles |
 | `jaw-tools repomix run <profile>` | Generate a codebase snapshot |
+| `jaw-tools repomix generate-from-prd --prd-file <path>` | Generate a Repomix profile from a Mini-PRD file |
 | `jaw-tools compile <prompt-file>` | Compile a prompt template |
 | `jaw-tools workflow list` | List available command sequences |
 | `jaw-tools workflow [sequence-name]` | Run a command sequence |
 | `jaw-tools mini-prd create <name>` | Create a new Mini-PRD |
 | `jaw-tools mini-prd update <id>` | Update a Mini-PRD |
 | `jaw-tools mini-prd snapshot <id>` | Generate a snapshot for a Mini-PRD |
+| `jaw-tools mini-prd list` | List all Mini-PRDs |
+| `jaw-tools refresh [--force] [--yes] [--pattern=<glob>]` | Refresh templates from the latest version |
+| `jaw-tools refresh-profiles` | Add new Repomix profiles without changing existing ones |
+| `jaw-tools execution <subcommand> [options]` | Manage AI-assisted execution workflow (see 'npx jaw-tools execution help' for subcommands) |
 | `jaw-tools version` | Show version information |
 | `jaw-tools help` | Show help message |
 
