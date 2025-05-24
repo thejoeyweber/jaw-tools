@@ -250,6 +250,88 @@ This will verify:
 - Repomix integration is working
 - Profiles manager is properly installed
 
+### `jaw deps snapshot`
+
+Creates a snapshot of the current project's core framework and toolchain versions. This snapshot is useful for reproducibility, debugging, understanding the project's technical stack over time, and providing accurate context for LLM prompting.
+
+The command scans `package.json` for declared dependencies and executes runtime commands (like `node -v`, `npm -v`, `tsc -v`) to gather version information.
+
+**Output:**
+
+By default, it generates a Markdown file at `_docs/project-files/references/stack-docs.md`.
+It can also output in JSON format.
+
+**Options:**
+
+*   `--out <filename>`: Specify a custom output path and filename. If the filename has no extension, `.md` or `.json` will be appended based on the format.
+*   `--format <table|json>`: Specify the output format.
+    *   `table`: (Default) Outputs in Markdown table format with front-matter.
+    *   `json`: Outputs in JSON format.
+
+**Example Usage:**
+
+```bash
+# Generate Markdown snapshot at the default location
+jaw deps snapshot
+
+# Generate JSON snapshot at the default location (e.g., _docs/project-files/references/stack-docs.json)
+jaw deps snapshot --format json
+
+# Generate Markdown snapshot at a custom location
+jaw deps snapshot --out custom/docs/my-stack.md
+
+# Generate JSON snapshot at a custom location
+jaw deps snapshot --format json --out custom/data/stack-versions
+# (This will create stack-versions.json)
+```
+
+**Detected Technologies (Examples):**
+
+*   Node.js (from runtime)
+*   Package manager (npm, pnpm, or yarn, from runtime)
+*   TypeScript (from `package.json` or `tsc -v`)
+*   Next.js (from `package.json`)
+*   Supabase JS (from `package.json`)
+*   Clerk (from `package.json`)
+*   Drizzle ORM (from `package.json`)
+*   Tailwind CSS (from `package.json`)
+*   Shadcn UI (from `package.json`, if `shadcn-ui` package is listed)
+
+
+**Markdown Output Structure (Example - `stack-docs.md`):**
+
+```markdown
+---
+docType: reference
+version: 1.0.0
+lastUpdated: YYYY-MM-DD 
+---
+
+# Project Stack Snapshot
+
+| Tool / Library | Version   | Source         |
+|----------------|-----------|----------------|
+| Node.js        | v20.8.0   | runtime        |
+| npm            | 9.5.1     | runtime        |
+| Typescript     | 5.3.2     | package.json   |
+| Next.js        | 14.1.2    | package.json   |
+| ...            | ...       | ...            |
+
+> This snapshot is auto-generated for reproducibility. Add manual notes as needed.
+```
+
+**JSON Output Structure (Example):**
+
+```json
+{
+  "node": "20.8.0",
+  "npm": "9.5.1",
+  "typescript": "5.3.2",
+  "next": "14.1.2",
+  "...": "..."
+}
+```
+
 ## Configuration
 
 jaw-tools uses a configuration file named `jaw-tools.config.js` in your project root:
@@ -331,6 +413,7 @@ module.exports = {
 | `jaw-tools mini-prd create <name>` | Create a new Mini-PRD |
 | `jaw-tools mini-prd update <id>` | Update a Mini-PRD |
 | `jaw-tools mini-prd snapshot <id>` | Generate a snapshot for a Mini-PRD |
+| `jaw deps snapshot [--out <f>] [--format <fmt>]` | Create a dependency snapshot (Markdown/JSON) |
 | `jaw-tools version` | Show version information |
 | `jaw-tools help` | Show help message |
 

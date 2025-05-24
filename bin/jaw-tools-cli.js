@@ -17,6 +17,7 @@ process.on('uncaughtException', (err) => {
 const configManager = require('../src/config-manager');
 const { ensureDir } = require('../src/utils');
 const { runWorkflow: runWorkflowSteps } = require('../src/workflow/run'); // New workflow system
+const { createSnapshot } = require('../src/deps/snapshot'); // Added for deps snapshot
 
 // Normalize path for cross-platform compatibility
 function normalizePath(...pathSegments) {
@@ -39,6 +40,7 @@ const validCommands = [
   'refresh', 'update',
   'refresh-profiles', 'update-profiles',
   'execution', 'e',
+  'deps', // Added 'deps'
   'version', 'v',
   'help', 'h'
 ];
@@ -113,6 +115,15 @@ switch (command) {
   case 'version':
   case 'v':
     showVersion();
+    break;
+
+  case 'deps':
+    if (args[0] === 'snapshot') {
+      runDepsSnapshotCommand(args.slice(1));
+    } else {
+      console.error(`Invalid command: jaw deps ${args[0] || ''}. Did you mean 'jaw deps snapshot'?`);
+      process.exit(1);
+    }
     break;
     
   case 'meta-prompt':
@@ -772,6 +783,10 @@ Commands:
   version                 Show jaw-tools version
   help                    Show this help
   
+  deps snapshot [--out <f>] [--format <fmt>]  Creates a snapshot of project dependencies.
+                                                <f> = output filename (default: _docs/project-files/references/stack-docs.md)
+                                                <fmt> = format: 'table' (default) or 'json'
+  
 Aliases:
   r = repomix
   c = compile
@@ -893,4 +908,49 @@ function levenshteinDistance(a, b) {
   }
 
   return matrix[b.length][a.length];
-} 
+}
+
+// Placeholder function for deps snapshot command
+function runDepsSnapshotCommand(args) {
+  let options = { format: 'table' }; // Default format
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--out' && args[i + 1]) {
+      options.out = args[i + 1];
+      i++; // Skip next arg
+    } else if (args[i] === '--format' && args[i + 1]) {
+      if (['table', 'json'].includes(args[i + 1])) {
+        options.format = args[i + 1];
+      } else {
+        console.error(`❌ Invalid format: ${args[i + 1]}. Must be 'table' or 'json'.`);
+        process.exit(1);
+      }
+      i++; // Skip next arg
+    } else if (args[i].startsWith('--')) {
+      console.warn(`⚠️ Warning: Unknown option ${args[i]} for deps snapshot.`);
+    } else {
+      // Handle unexpected positional arguments, if any, or ignore them
+      console.warn(`⚠️ Warning: Unexpected argument ${args[i]} for deps snapshot.`);
+    }
+  }
+
+  // console.log('ℹ️ Running jaw deps snapshot with options:', options); // Placeholder removed
+
+  try {
+    const success = createSnapshot(options);
+    if (success) {
+      // Success message is handled by createSnapshot itself
+      process.exit(0);
+    } else {
+      // Error messages are handled by createSnapshot
+      console.error("❌ jaw deps snapshot command failed."); // Generic additional error
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error(`❌ An unexpected error occurred during 'jaw deps snapshot': ${error.message}`);
+    if (error.stack) {
+        console.error(error.stack);
+    }
+    process.exit(1);
+  }
+}
