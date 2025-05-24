@@ -55,6 +55,14 @@ const defaultConfig = {
       codeSnapshots: 'temp_code_snapshots',
       compiledPrompts: 'temp_compiled_prompts'
     }
+  },
+  docLint: {
+    requiredFields: ['docType', 'version', 'lastUpdated'],
+    autoFixFields: ['lastUpdated'], // Which missing fields to auto-add
+    validDocTypes: ['mini-prd', 'adr', 'sppg', 'prompt', 'reference'],
+    // Note: default searchPath and ignorePatterns are handled directly in doc-lint.js's parseDocLintArgs
+    // as they are more CLI-arg driven than project config driven by default.
+    // However, they could be added here if a project-wide default different from _docs/**.md is desired.
   }
 };
 

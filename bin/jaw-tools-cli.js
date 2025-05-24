@@ -39,7 +39,9 @@ const validCommands = [
   'refresh-profiles', 'update-profiles',
   'execution', 'e',
   'version', 'v',
-  'help', 'h'
+  'help', 'h',
+  'doc',
+  'lint'
 ];
 
 // Initialize if not already done
@@ -123,6 +125,16 @@ switch (command) {
   case 'help':
   case 'h':
     showHelp();
+    break;
+
+  case 'doc':
+    if (args[0] === 'lint') {
+      runDocLint(args.slice(1));
+    } else {
+      console.error("❌ Invalid subcommand for 'doc'. Available subcommands: lint");
+      console.log("Usage: npx jaw-tools doc lint");
+      process.exit(1);
+    }
     break;
     
   case undefined:
@@ -831,6 +843,22 @@ function loadConfig() {
 // Utility function to convert kebab-case to camelCase
 function camelCase(str) {
   return str.replace(/-([a-z])/g, (match, letter) => letter.toUpperCase());
+}
+
+// Function to run doc lint
+function runDocLint(args) {
+  // This is a placeholder for the actual doc lint functionality
+  console.log('Running doc lint with args:', args);
+  // try {
+  //   // Load config
+  //   const config = loadConfig();
+  //   // Placeholder for doc lint logic
+  //   console.log('Doc lint command executed.');
+  //   process.exit(0);
+  // } catch (err) {
+  //   console.error(`❌ Error in doc lint command: ${err.message}`);
+  //   process.exit(1);
+  // }
 }
 
 // Helper function to find the closest valid command

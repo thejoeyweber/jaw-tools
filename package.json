@@ -17,7 +17,12 @@
     "doctor": "jaw-tools doctor",
     "test-install": "node test-install.js"
   },
-    "dependencies": {    "fs-extra": "^11.3.0",    "glob": "^10.4.5",    "gray-matter": "^4.0.3",    "js-yaml": "^4.1.0"  },
+  "dependencies": {
+    "fs-extra": "^11.3.0",
+    "glob": "^10.4.5",
+    "gray-matter": "^4.0.3",
+    "js-yaml": "^4.1.0"
+  },
   "peerDependencies": {
     "repomix": ">=0.3.0"
   },
