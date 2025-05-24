@@ -54,6 +54,31 @@ module.exports = {
     },
     "defaultSequence": "default"
   },
+  "workflows": {
+    "hello-world": [
+      {
+        "command": "echo \"Hello from workflow!\"",
+        "description": "Prints a hello message via a workflow step."
+      }
+    ],
+    "example-with-env-var": [
+      {
+        "command": "echo \"User is: $USER\"",
+        "description": "Prints a message with an environment variable."
+      }
+    ],
+    "multi-step-example": [
+      {
+        "command": "ls -la",
+        "description": "List files in the current directory."
+      },
+      {
+        "command": "echo \"Finished listing files. This step will continue even if the previous one had an issue (hypothetically).\"",
+        "description": "A second step.",
+        "continueOnError": true
+      }
+    ]
+  },
   "projectScaffolding": {
     "scaffoldTargetRootDir": ".",
     "userGuide": {

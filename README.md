@@ -183,6 +183,59 @@ List available sequences:
 npx jaw-tools workflow list
 ```
 
+### `jaw workflow run <workflow-name>`
+
+Run a named development workflow defined in your `jaw-tools.config.js`.
+
+These workflows chain together reusable commands like `jaw ai hello-world`, `jaw doc lint`, `jaw test scaffold`, and more.
+
+**Example Usage:**
+
+```bash
+jaw workflow run hello-world
+jaw workflow run bump-docs --dry-run
+jaw workflow run test-slice --verbose
+```
+
+**Defining Workflows:**
+
+Define new workflows in your `jaw-tools.config.js` file under the `workflows` key:
+
+```javascript
+// jaw-tools.config.js
+module.exports = {
+  // ... other configurations ...
+
+  workflows: {
+    'hello-world': [
+      { command: 'echo "Hello from workflow!"', description: 'Regenerate Hello World slice' }
+    ],
+    'bump-docs': [
+      { command: 'jaw doc lint --fix', description: 'Auto-fix missing doc metadata' },
+      { command: 'jaw doc version bump', description: 'Bump doc versions' }
+    ],
+    'test-slice': [
+      // Assuming FEATURE is an environment variable you would set
+      // e.g., FEATURE=my-new-feature jaw workflow run test-slice
+      { command: 'jaw test scaffold $FEATURE', description: 'Scaffold tests for feature' },
+      { command: 'npm run test', description: 'Run all tests' }
+    ]
+  }
+  // ... other configurations ...
+};
+```
+
+**Workflow Step Properties:**
+
+*   `command`: (String) The actual shell command to execute. Can include environment variables like `$VAR_NAME` or `${VAR_NAME}`.
+*   `description`: (String, Optional) A description of what the step does. Used for logging.
+*   `continueOnError`: (Boolean, Optional) If `true`, the workflow will continue to the next step even if this step fails. Defaults to `false`.
+
+**Options:**
+
+*   `--dry-run`: Print each step and its description without executing any commands. Useful for previewing a workflow.
+*   `--verbose`: Print command descriptions and detailed execution status, including the output of each command.
+
 ### System Diagnostics
 
 Check the health of your jaw-tools setup:
@@ -272,8 +325,9 @@ module.exports = {
 | `jaw-tools repomix list` | List available repomix profiles |
 | `jaw-tools repomix run <profile>` | Generate a codebase snapshot |
 | `jaw-tools compile <prompt-file>` | Compile a prompt template |
-| `jaw-tools workflow list` | List available command sequences |
-| `jaw-tools workflow [sequence-name]` | Run a command sequence |
+| `jaw-tools workflow list` | List available command sequences (old system) |
+| `jaw-tools workflow [sequence-name]` | Run a command sequence (old system) |
+| `jaw-tools workflow run <name> [--dry-run] [--verbose]` | Run a named development workflow (new system) |
 | `jaw-tools mini-prd create <name>` | Create a new Mini-PRD |
 | `jaw-tools mini-prd update <id>` | Update a Mini-PRD |
 | `jaw-tools mini-prd snapshot <id>` | Generate a snapshot for a Mini-PRD |

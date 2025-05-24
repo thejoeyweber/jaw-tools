@@ -16,6 +16,7 @@ process.on('uncaughtException', (err) => {
 // Import utilities and config manager
 const configManager = require('../src/config-manager');
 const { ensureDir } = require('../src/utils');
+const { runWorkflow: runWorkflowSteps } = require('../src/workflow/run'); // New workflow system
 
 // Normalize path for cross-platform compatibility
 function normalizePath(...pathSegments) {
@@ -363,32 +364,52 @@ function runCompilePrompt(args) {
 
 function runWorkflow(args) {
   try {
-    // Load config
-    const config = loadConfig();
-    
-    // Get workflow module
-    const workflow = require('../lib/workflow');
-    
-    // Determine the subcommand
-    const subCommand = args[0];
-    
-    if (subCommand === 'list') {
-      // List available sequences
-      workflow.listSequences(config);
+    const config = loadConfig(); // Needed for the old system
+
+    if (args[0] === 'run') {
+      const workflowName = args[1];
+      const commandArgs = args.slice(2);
+      
+      if (!workflowName || workflowName.startsWith('--')) {
+        console.error("❌ Error: Workflow name not specified for 'run' command.");
+        console.log("Usage: jaw-tools workflow run <workflow-name> [--dry-run] [--verbose]");
+        process.exit(1);
+      }
+
+      const options = {
+        dryRun: commandArgs.includes('--dry-run'),
+        verbose: commandArgs.includes('--verbose')
+      };
+
+      // Call the new workflow execution system
+      const success = runWorkflowSteps(workflowName, options); // runWorkflowSteps is the imported function
+      process.exit(success ? 0 : 1);
+
     } else {
-      // Run sequence (either specified sequence or default)
-      const sequenceName = (subCommand && !subCommand.startsWith('--')) ? subCommand : null;
-      workflow.runSequence(config, sequenceName)
-        .then(success => {
-          process.exit(success ? 0 : 1);
-        })
-        .catch(err => {
-          console.error(`Error running sequence: ${err.message}`);
-          process.exit(1);
-        });
+      // Existing logic for old sequence-based system
+      const oldWorkflowSystem = require('../lib/workflow'); // Keep this local to avoid confusion
+      const subCommand = args[0];
+
+      if (subCommand === 'list') {
+        oldWorkflowSystem.listSequences(config);
+        process.exit(0); // listSequences is synchronous and doesn't return status
+      } else {
+        const sequenceName = (subCommand && !subCommand.startsWith('--')) ? subCommand : null;
+        oldWorkflowSystem.runSequence(config, sequenceName)
+          .then(success => {
+            process.exit(success ? 0 : 1);
+          })
+          .catch(err => {
+            console.error(`Error running sequence (old system): ${err.message}`);
+            process.exit(1);
+          });
+      }
     }
   } catch (err) {
     console.error(`❌ Error in workflow command: ${err.message}`);
+    if (err.stack && (args.includes('--verbose') || process.env.DEBUG)) { // Show stack if verbose or DEBUG is set
+        console.error(err.stack);
+    }
     process.exit(1);
   }
 }
@@ -732,9 +753,10 @@ Commands:
   
   compile <prompt-file>   Compile a prompt template
   
-  workflow [sequence]     Run command sequences
-    list                  Show available command sequences
-    <sequence-name>       Run the specified sequence
+  workflow <subcommand> [name] [options] Run development workflows or command sequences
+    run <name> [--dry-run] [--verbose]  Run a named workflow (new system)
+    list                                Show available command sequences (old system)
+    <sequence-name>                     Run the specified sequence (old system, if no 'run' subcommand)
     
   mini-prd <subcommand>   Manage Mini-PRDs
     create <n>            Create a new Mini-PRD
