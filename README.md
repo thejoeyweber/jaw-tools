@@ -197,6 +197,68 @@ This will verify:
 - Repomix integration is working
 - Profiles manager is properly installed
 
+### Documentation Linting
+
+Lint your project's Markdown files to ensure front-matter consistency and adherence to best practices.
+Consider adding `jaw-tools doc lint` to your CI pipeline to ensure documentation hygiene.
+
+```bash
+# Lint Markdown files in the default _docs/ directory
+npx jaw-tools doc lint
+
+# Lint files in a custom path
+npx jaw-tools doc lint --path "path/to/your/docs/**/*.md"
+
+# Ignore specific files or patterns (comma-separated)
+npx jaw-tools doc lint --ignore "**/ignored-*.md,**/*template.md"
+
+# Enable auto-fixing for certain issues (e.g., missing or outdated lastUpdated)
+npx jaw-tools doc lint --fix
+
+# Enable verbose output for more detailed information, especially for passed files
+npx jaw-tools doc lint --verbose
+```
+
+The `doc lint` command performs the following checks:
+
+*   **Front-Matter Validation**:
+    *   Ensures required fields (default: `docType`, `version`, `lastUpdated`) are present.
+    *   Validates `docType` against a list of allowed types (default: `mini-prd`, `adr`, `sppg`, `prompt`, `reference`).
+    *   Validates `version` format (must be SemVer, e.g., `1.0.0`).
+    *   Validates `lastUpdated` format (must be `YYYY-MM-DD`).
+*   **Title Consistency**:
+    *   Checks if the main H1 title in the Markdown body matches the filename (e.g., `my-document.md` should have `# My Document` as its H1). This is a warning-only check.
+
+**Configuration**:
+
+The behavior of `doc lint` can be configured in your `jaw-tools.config.js` file under the `docLint` key:
+
+```javascript
+// In jaw-tools.config.js
+module.exports = {
+  // ... other configurations
+  docLint: {
+    requiredFields: ['docType', 'version', 'lastUpdated', 'customField'], // Customize required front-matter fields
+    autoFixFields: ['lastUpdated', 'docType'], // Specify which missing fields to auto-add/fix
+                                               // 'docType' will be set to 'unknown' if missing and auto-fixed
+                                               // 'version' will be set to '1.0.0' if missing and auto-fixed
+    validDocTypes: ['mini-prd', 'adr', 'technical-brief'], // Customize allowed document types
+  }
+};
+```
+
+**Auto-fixing**:
+
+When the `--fix` flag is used:
+*   Missing fields specified in `autoFixFields` will be added.
+    *   `docType`: Added as `'unknown'` if missing and 'docType' is in `autoFixFields`.
+    *   `version`: Added as `'1.0.0'` if missing and 'version' is in `autoFixFields`.
+    *   `lastUpdated`: Added or updated to the current date if missing/outdated and 'lastUpdated' is in `autoFixFields`.
+*   Other validation errors (e.g., invalid `docType` value, incorrect `version` format) are reported but not auto-fixed.
+
+**Output Customization**:
+*   `--verbose`: Provides more detailed output. For files that pass all checks (no errors, no fixes, no warnings), it explicitly states "(All checks passed)".
+
 ## Configuration
 
 jaw-tools uses a configuration file named `jaw-tools.config.js` in your project root:
@@ -269,6 +331,7 @@ module.exports = {
 | `jaw-tools setup` | Interactive setup with dependency checks |
 | `jaw-tools scaffold [--force]` | Scaffold standard documentation suite |
 | `jaw-tools doctor` | Check jaw-tools setup status |
+| `jaw-tools doc lint [options]` | Lints Markdown file front-matter and checks for title consistency. |
 | `jaw-tools repomix list` | List available repomix profiles |
 | `jaw-tools repomix run <profile>` | Generate a codebase snapshot |
 | `jaw-tools compile <prompt-file>` | Compile a prompt template |
